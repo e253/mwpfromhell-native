@@ -102,92 +102,60 @@ static const char *SINGLE[] = {
 static const char *SINGLE_ONLY[] = {"br", "wbr", "hr", "meta", "link", "img", NULL};
 
 /*
-    Convert a PyUnicodeObject to a lowercase ASCII char* array and store it in
-    the second argument. The caller must free the return value when finished.
-    If the return value is NULL, the conversion failed and *string is not set.
-*/
-static PyObject *
-unicode_to_lcase_ascii(PyObject *input, const char **string)
-{
-    PyObject *lower = PyObject_CallMethod(input, "lower", NULL), *bytes;
-
-    if (!lower) {
-        return NULL;
-    }
-    bytes = PyUnicode_AsASCIIString(lower);
-    Py_DECREF(lower);
-    if (!bytes) {
-        if (PyErr_Occurred() && PyErr_ExceptionMatches(PyExc_UnicodeEncodeError)) {
-            PyErr_Clear();
-        }
-        return NULL;
-    }
-    *string = PyBytes_AS_STRING(bytes);
-    return bytes;
-}
-
-/*
     Return whether a PyUnicodeObject is in a list of lowercase ASCII strings.
 */
-static int
-unicode_in_string_list(PyObject *input, const char **list)
+static inline int
+string_in_string_list(char *input, size_t input_len, const char **list)
 {
-    const char *string;
-    PyObject *temp = unicode_to_lcase_ascii(input, &string);
-    int retval = 0;
+    int i = 0;
+    const char* target = list[i];
+    while (target != NULL) {
+        if (strncmp(target, input, input_len) == 0)
+            return 1;
 
-    if (!temp) {
-        return 0;
+        i++;
+        target = list[i];
     }
 
-    while (*list) {
-        if (!strcmp(*(list++), string)) {
-            retval = 1;
-            goto end;
-        }
-    }
-
-end:
-    Py_DECREF(temp);
-    return retval;
+    return 0;
 }
 
 /*
     Return if the given tag's contents should be passed to the parser.
 */
 int
-is_parsable(PyObject *tag)
+is_parsable(char *tag, size_t tag_len)
 {
-    return !unicode_in_string_list(tag, PARSER_BLACKLIST);
+    return !string_in_string_list(tag, tag_len, PARSER_BLACKLIST);
 }
 
 /*
     Return whether or not the given tag can exist without a close tag.
 */
 int
-is_single(PyObject *tag)
+is_single(char *tag, size_t tag_len)
 {
-    return unicode_in_string_list(tag, SINGLE);
+    return string_in_string_list(tag, tag_len, SINGLE);
 }
 
 /*
     Return whether or not the given tag must exist without a close tag.
 */
 int
-is_single_only(PyObject *tag)
+is_single_only(char *tag, size_t tag_len)
 {
-    return unicode_in_string_list(tag, SINGLE_ONLY);
+    return string_in_string_list(tag, tag_len, SINGLE_ONLY);
 }
 
 /*
     Return whether the given scheme is valid for external links.
 */
 int
-is_scheme(PyObject *scheme, int slashes)
+is_scheme(char *scheme, size_t scheme_len, int slashes)
 {
     if (slashes) {
-        return unicode_in_string_list(scheme, URI_SCHEMES);
+        return string_in_string_list(scheme, scheme_len, URI_SCHEMES);
     } else {
-        return unicode_in_string_list(scheme, URI_SCHEMES_AUTHORITY_OPTIONAL);
+        return string_in_string_list(scheme, scheme_len, URI_SCHEMES_AUTHORITY_OPTIONAL);
     }
 }

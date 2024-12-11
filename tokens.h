@@ -22,48 +22,116 @@ SOFTWARE.
 
 #pragma once
 
-#include "common.h"
+#include <stdbool.h>
 
-/* Token globals */
+typedef enum {
+    Text,
 
-extern PyObject *Text;
+    TemplateOpen,
+    TemplateParamSeparator,
+    TemplateParamEquals,
+    TemplateClose,
 
-extern PyObject *TemplateOpen;
-extern PyObject *TemplateParamSeparator;
-extern PyObject *TemplateParamEquals;
-extern PyObject *TemplateClose;
+    ArgumentOpen,
+    ArgumentSeparator,
+    ArgumentClose,
 
-extern PyObject *ArgumentOpen;
-extern PyObject *ArgumentSeparator;
-extern PyObject *ArgumentClose;
+    WikilinkOpen,
+    WikilinkSeparator,
+    WikilinkClose,
 
-extern PyObject *WikilinkOpen;
-extern PyObject *WikilinkSeparator;
-extern PyObject *WikilinkClose;
+    ExternalLinkOpen,
+    ExternalLinkSeparator,
+    ExternalLinkClose,
 
-extern PyObject *ExternalLinkOpen;
-extern PyObject *ExternalLinkSeparator;
-extern PyObject *ExternalLinkClose;
+    HTMLEntityStart,
+    HTMLEntityNumeric,
+    HTMLEntityHex,
+    HTMLEntityEnd,
+    HeadingStart,
+    HeadingEnd,
 
-extern PyObject *HTMLEntityStart;
-extern PyObject *HTMLEntityNumeric;
-extern PyObject *HTMLEntityHex;
-extern PyObject *HTMLEntityEnd;
-extern PyObject *HeadingStart;
-extern PyObject *HeadingEnd;
+    CommentStart,
+    CommentEnd,
 
-extern PyObject *CommentStart;
-extern PyObject *CommentEnd;
+    TagOpenOpen,
+    TagAttrStart,
+    TagAttrEquals,
+    TagAttrQuote,
+    TagCloseOpen,
+    TagCloseSelfclose,
+    TagOpenClose,
+    TagCloseClose,
+} TokenType;
 
-extern PyObject *TagOpenOpen;
-extern PyObject *TagAttrStart;
-extern PyObject *TagAttrEquals;
-extern PyObject *TagAttrQuote;
-extern PyObject *TagCloseOpen;
-extern PyObject *TagCloseSelfclose;
-extern PyObject *TagOpenClose;
-extern PyObject *TagCloseClose;
+inline const char* TokenTypeString(TokenType tt)
+{
+#define Case_Return(enum) \
+    case enum:            \
+        return #enum;
 
-/* Functions */
+    switch (tt) {
+        Case_Return(Text);
+        Case_Return(TemplateOpen);
+        Case_Return(TemplateParamSeparator);
+        Case_Return(TemplateParamEquals);
+        Case_Return(TemplateClose);
+        Case_Return(ArgumentOpen);
+        Case_Return(ArgumentSeparator);
+        Case_Return(ArgumentClose);
+        Case_Return(WikilinkOpen);
+        Case_Return(WikilinkSeparator);
+        Case_Return(WikilinkClose);
+        Case_Return(ExternalLinkOpen);
+        Case_Return(ExternalLinkSeparator);
+        Case_Return(ExternalLinkClose);
+        Case_Return(HTMLEntityStart);
+        Case_Return(HTMLEntityNumeric);
+        Case_Return(HTMLEntityHex);
+        Case_Return(HTMLEntityEnd);
+        Case_Return(HeadingStart);
+        Case_Return(HeadingEnd);
+        Case_Return(CommentStart);
+        Case_Return(CommentEnd);
+        Case_Return(TagOpenOpen);
+        Case_Return(TagAttrStart);
+        Case_Return(TagAttrEquals);
+        Case_Return(TagAttrQuote);
+        Case_Return(TagCloseOpen);
+        Case_Return(TagCloseSelfclose);
+        Case_Return(TagOpenClose);
+        Case_Return(TagCloseClose);
+    }
+}
 
-void load_tokens_from_module(PyObject *);
+typedef struct {
+    bool space;
+} ExternalLinkSeparatorContext;
+
+typedef struct {
+    bool brackets;
+} ExternalLinkOpenContext;
+
+typedef struct {
+    char level;
+} HeadingContext;
+
+typedef struct {
+    TokenType type;
+
+    union {
+        ExternalLinkSeparatorContext external_link_sep;
+        ExternalLinkOpenContext external_link_open;
+        HeadingContext heading;
+        void* data; // default
+    } ctx;
+} Token;
+
+#define TOKEN(variable_name, type_value) \
+    Token variable_name;                 \
+    variable_name.type = type_value;     \
+    variable_name.ctx.data = NULL;
+
+#define TOKEN_CTX(variable_name, type_value) \
+    Token variable_name;                     \
+    variable_name.type = type_value;

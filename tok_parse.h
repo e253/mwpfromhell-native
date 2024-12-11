@@ -24,13 +24,30 @@ SOFTWARE.
 
 #include "common.h"
 
-static const Py_UCS4 MARKERS[] = {
-    '{', '}', '[', ']', '<', '>', '|', '=',  '&',  '\'',
-    '#', '*', ';', ':', '/', '-', '!', '\n', '\0',
+static const char MARKERS[] = {
+    '{',
+    '}',
+    '[',
+    ']',
+    '<',
+    '>',
+    '|',
+    '=',
+    '&',
+    '\'',
+    '#',
+    '*',
+    ';',
+    ':',
+    '/',
+    '-',
+    '!',
+    '\n',
+    '\0',
 };
 
 #define NUM_MARKERS 19
 
 /* Functions */
 
-PyObject *Tokenizer_parse(Tokenizer *, uint64_t, int);
+TokenList* Tokenizer_parse(Tokenizer*, uint64_t, int);

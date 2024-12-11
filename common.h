@@ -22,78 +22,71 @@ SOFTWARE.
 
 #pragma once
 
-#ifndef PY_SSIZE_T_CLEAN
-#    define PY_SSIZE_T_CLEAN // See: https://docs.python.org/3/c-api/arg.html
-#endif
-
-#include <Python.h>
-#include <bytesobject.h>
-#include <structmember.h>
-
+#include "Python.h"
 #include "avl_tree.h"
+#include "tokens.h"
+#include <assert.h>
+#include <ctype.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-/* Compatibility macros */
-
-#ifndef uint64_t
-#    define uint64_t unsigned PY_LONG_LONG
-#endif
-
-#define malloc  PyObject_Malloc // XXX: yuck
-#define realloc PyObject_Realloc
-#define free    PyObject_Free
-
-/* Unicode support macros */
-
-#define PyUnicode_FROM_SINGLE(chr)                                                     \
-    PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, &(chr), 1)
+#define BOMB_PY_METHOD(name)                               \
+    printf("Hit method not implemented yet: %s\n", #name); \
+    exit(1);
 
 /* Error handling macros */
 
-#define BAD_ROUTE         self->route_state
+#define BAD_ROUTE self->route_state
 #define BAD_ROUTE_CONTEXT self->route_context
-#define FAIL_ROUTE(context)                                                            \
-    do {                                                                               \
-        self->route_state = 1;                                                         \
-        self->route_context = context;                                                 \
+#define FAIL_ROUTE(context)            \
+    do {                               \
+        self->route_state = 1;         \
+        self->route_context = context; \
     } while (0)
 #define RESET_ROUTE() self->route_state = 0
 
 /* Shared globals */
 
-extern char **entitydefs;
+extern char** entitydefs;
 
-extern PyObject *NOARGS;
-extern PyObject *definitions;
+extern PyObject* NOARGS;
+extern PyObject* definitions;
 
 /* Structs */
 
 typedef struct {
-    Py_ssize_t capacity;
-    Py_ssize_t length;
-    PyObject *object;
-    int kind;
-    void *data;
+    char* data;
+    size_t length;
+    size_t capacity;
 } Textbuffer;
 
 typedef struct {
-    Py_ssize_t head;
+    size_t head;
     uint64_t context;
 } StackIdent;
 
+typedef struct
+{
+    Token* tokens;
+    size_t len;
+    size_t capacity;
+} TokenList;
+
 struct Stack {
-    PyObject *stack;
+    TokenList* tokenlist;
     uint64_t context;
-    Textbuffer *textbuffer;
+    Textbuffer* textbuffer;
     StackIdent ident;
-    struct Stack *next;
+    struct Stack* next;
 };
 typedef struct Stack Stack;
 
 typedef struct {
-    PyObject *object;  /* base PyUnicodeObject object */
-    Py_ssize_t length; /* length of object, in code points */
-    int kind;          /* object's kind value */
-    void *data;        /* object's raw unicode buffer */
+    size_t length;
+    char* data;
 } TokenizerInput;
 
 typedef struct avl_tree_node avl_tree;
@@ -104,14 +97,13 @@ typedef struct {
 } route_tree_node;
 
 typedef struct {
-    PyObject_HEAD
-    TokenizerInput text;    /* text to tokenize */
-    Stack *topstack;        /* topmost stack */
-    Py_ssize_t head;        /* current position in text */
-    int global;             /* global context */
-    int depth;              /* stack recursion depth */
-    int route_state;        /* whether a BadRoute has been triggered */
+    TokenizerInput text; /* text to tokenize */
+    Stack* topstack; /* topmost stack */
+    size_t head; /* current position in text */
+    int global; /* global context */
+    int depth; /* stack recursion depth */
+    int route_state; /* whether a BadRoute has been triggered */
     uint64_t route_context; /* context when the last BadRoute was triggered */
-    avl_tree *bad_routes;   /* stack idents for routes known to fail */
-    int skip_style_tags;    /* temp fix for the sometimes broken tag parser */
+    avl_tree* bad_routes; /* stack idents for routes known to fail */
+    int skip_style_tags; /* temp fix for the sometimes broken tag parser */
 } Tokenizer;

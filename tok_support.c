@@ -20,9 +20,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+#include "common.h"
+#include "tokenlist.h"
 #include "tok_support.h"
 #include "textbuffer.h"
-#include "tokens.h"
 
 /*
     Add a new token stack, context, and textbuffer to the list.
@@ -31,17 +32,13 @@ int
 Tokenizer_push(Tokenizer *self, uint64_t context)
 {
     Stack *top = malloc(sizeof(Stack));
+    assert(top);
 
-    if (!top) {
-        PyErr_NoMemory();
-        return -1;
-    }
-    top->stack = PyList_New(0);
+    top->tokenlist = TokenList_new(0);
     top->context = context;
     top->textbuffer = Textbuffer_new(&self->text);
-    if (!top->textbuffer) {
-        return -1;
-    }
+    assert(top->textbuffer);
+
     top->ident.head = self->head;
     top->ident.context = context;
     top->next = self->topstack;
@@ -62,30 +59,14 @@ Tokenizer_push_textbuffer(Tokenizer *self)
     if (buffer->length == 0) {
         return 0;
     }
-    text = Textbuffer_render(buffer);
-    if (!text) {
-        return -1;
-    }
-    kwargs = PyDict_New();
-    if (!kwargs) {
-        Py_DECREF(text);
-        return -1;
-    }
-    PyDict_SetItemString(kwargs, "text", text);
-    Py_DECREF(text);
-    token = PyObject_Call(Text, NOARGS, kwargs);
-    Py_DECREF(kwargs);
-    if (!token) {
-        return -1;
-    }
-    if (PyList_Append(self->topstack->stack, token)) {
-        Py_DECREF(token);
-        return -1;
-    }
-    Py_DECREF(token);
-    if (Textbuffer_reset(buffer)) {
-        return -1;
-    }
+
+    Token t;
+    t.type = Text;
+    t.ctx.data = Textbuffer_export(buffer);
+    TokenList_append(self->topstack->tokenlist, &t);
+
+    Textbuffer_reset(buffer);
+
     return 0;
 }
 
@@ -97,7 +78,8 @@ Tokenizer_delete_top_of_stack(Tokenizer *self)
 {
     Stack *top = self->topstack;
 
-    Py_DECREF(top->stack);
+    // TODO: Make sure everything is de-allocated here.
+
     Textbuffer_dealloc(top->textbuffer);
     self->topstack = top->next;
     free(top);
@@ -107,39 +89,33 @@ Tokenizer_delete_top_of_stack(Tokenizer *self)
 /*
     Pop the current stack/context/textbuffer, returing the stack.
 */
-PyObject *
+TokenList *
 Tokenizer_pop(Tokenizer *self)
 {
-    PyObject *stack;
-
-    if (Tokenizer_push_textbuffer(self)) {
+    if (Tokenizer_push_textbuffer(self))
         return NULL;
-    }
-    stack = self->topstack->stack;
-    Py_INCREF(stack);
+    TokenList* tl = self->topstack->tokenlist;
     Tokenizer_delete_top_of_stack(self);
-    return stack;
+    return tl;
 }
 
 /*
     Pop the current stack/context/textbuffer, returing the stack. We will also
     replace the underlying stack's context with the current stack's.
 */
-PyObject *
+TokenList *
 Tokenizer_pop_keeping_context(Tokenizer *self)
 {
-    PyObject *stack;
     uint64_t context;
 
     if (Tokenizer_push_textbuffer(self)) {
         return NULL;
     }
-    stack = self->topstack->stack;
-    Py_INCREF(stack);
+    TokenList* tl = self->topstack->tokenlist;
     context = self->topstack->context;
     Tokenizer_delete_top_of_stack(self);
     self->topstack->context = context;
-    return stack;
+    return tl;
 }
 
 /*
@@ -245,24 +221,19 @@ Tokenizer_free_bad_route_tree(Tokenizer *self)
     Write a token to the current token stack.
 */
 int
-Tokenizer_emit_token(Tokenizer *self, PyObject *token, int first)
+Tokenizer_emit_token(Tokenizer *self, Token *token, int first)
 {
-    PyObject *instance;
-
     if (Tokenizer_push_textbuffer(self)) {
-        return -1;
+        return 1;
     }
-    instance = PyObject_CallObject(token, NULL);
-    if (!instance) {
-        return -1;
+
+    if (first) {
+        TokenList_prepend(self->topstack->tokenlist, token);
+    } else {
+        TokenList_append(self->topstack->tokenlist, token);
     }
-    if (first ? PyList_Insert(self->topstack->stack, 0, instance)
-              : PyList_Append(self->topstack->stack, instance)) {
-        Py_DECREF(instance);
-        return -1;
-    }
-    Py_DECREF(instance);
-    return 0;
+
+    return 0;    
 }
 
 /*
@@ -271,30 +242,31 @@ Tokenizer_emit_token(Tokenizer *self, PyObject *token, int first)
 */
 int
 Tokenizer_emit_token_kwargs(Tokenizer *self,
-                            PyObject *token,
+                            Token *token,
                             PyObject *kwargs,
                             int first)
 {
-    PyObject *instance;
+    BOMB_PY_METHOD(Tokenizer_emit_token_kwargs)
+    //PyObject *instance;
 
-    if (Tokenizer_push_textbuffer(self)) {
-        Py_DECREF(kwargs);
-        return -1;
-    }
-    instance = PyObject_Call(token, NOARGS, kwargs);
-    if (!instance) {
-        Py_DECREF(kwargs);
-        return -1;
-    }
-    if (first ? PyList_Insert(self->topstack->stack, 0, instance)
-              : PyList_Append(self->topstack->stack, instance)) {
-        Py_DECREF(instance);
-        Py_DECREF(kwargs);
-        return -1;
-    }
-    Py_DECREF(instance);
-    Py_DECREF(kwargs);
-    return 0;
+    //if (Tokenizer_push_textbuffer(self)) {
+    //    Py_DECREF(kwargs);
+    //    return -1;
+    //}
+    //instance = PyObject_Call(token, NOARGS, kwargs);
+    //if (!instance) {
+    //    Py_DECREF(kwargs);
+    //    return -1;
+    //}
+    //if (first ? PyList_Insert(self->topstack->stack, 0, instance)
+    //          : PyList_Append(self->topstack->stack, instance)) {
+    //    Py_DECREF(instance);
+    //    Py_DECREF(kwargs);
+    //    return -1;
+    //}
+    //Py_DECREF(instance);
+    //Py_DECREF(kwargs);
+    //return 0;
 }
 
 /*
@@ -339,62 +311,13 @@ Tokenizer_emit_textbuffer(Tokenizer *self, Textbuffer *buffer)
     Write a series of tokens to the current stack at once.
 */
 int
-Tokenizer_emit_all(Tokenizer *self, PyObject *tokenlist)
+Tokenizer_emit_all(Tokenizer *self, TokenList *tokenlist)
 {
-    int pushed = 0;
-    PyObject *stack, *token, *left, *right, *text;
-    Textbuffer *buffer;
-    Py_ssize_t size;
+    Tokenizer_push_textbuffer(self);
 
-    if (PyList_GET_SIZE(tokenlist) > 0) {
-        token = PyList_GET_ITEM(tokenlist, 0);
-        switch (PyObject_IsInstance(token, Text)) {
-        case 0:
-            break;
-        case 1: {
-            pushed = 1;
-            buffer = self->topstack->textbuffer;
-            if (buffer->length == 0) {
-                break;
-            }
-            left = Textbuffer_render(buffer);
-            if (!left) {
-                return -1;
-            }
-            right = PyObject_GetAttrString(token, "text");
-            if (!right) {
-                return -1;
-            }
-            text = PyUnicode_Concat(left, right);
-            Py_DECREF(left);
-            Py_DECREF(right);
-            if (!text) {
-                return -1;
-            }
-            if (PyObject_SetAttrString(token, "text", text)) {
-                Py_DECREF(text);
-                return -1;
-            }
-            Py_DECREF(text);
-            if (Textbuffer_reset(buffer)) {
-                return -1;
-            }
-            break;
-        }
-        case -1:
-            return -1;
-        }
-    }
-    if (!pushed) {
-        if (Tokenizer_push_textbuffer(self)) {
-            return -1;
-        }
-    }
-    stack = self->topstack->stack;
-    size = PyList_GET_SIZE(stack);
-    if (PyList_SetSlice(stack, size, size, tokenlist)) {
-        return -1;
-    }
+    for (int i = 0; i < tokenlist->len; i++)
+        TokenList_append(self->topstack->tokenlist, &tokenlist->tokens[i]);
+    
     return 0;
 }
 
@@ -405,59 +328,46 @@ Tokenizer_emit_all(Tokenizer *self, PyObject *tokenlist)
 int
 Tokenizer_emit_text_then_stack(Tokenizer *self, const char *text)
 {
-    PyObject *stack = Tokenizer_pop(self);
+    TokenList *tl = Tokenizer_pop(self);
 
-    if (Tokenizer_emit_text(self, text)) {
-        Py_DECREF(stack);
+    if (Tokenizer_emit_text(self, text))
         return -1;
+
+    if (tl && tl->len > 0) {
+        if (Tokenizer_emit_all(self, tl))
+            return -1;
     }
-    if (stack) {
-        if (PyList_GET_SIZE(stack) > 0) {
-            if (Tokenizer_emit_all(self, stack)) {
-                Py_DECREF(stack);
-                return -1;
-            }
-        }
-        Py_DECREF(stack);
-    }
+
     self->head--;
     return 0;
 }
 
 /*
-    Internal function to read the codepoint at the given index from the input.
-*/
-static Py_UCS4
-read_codepoint(TokenizerInput *text, Py_ssize_t index)
-{
-    return PyUnicode_READ(text->kind, text->data, index);
-}
-
-/*
     Read the value at a relative point in the wikicode, forwards.
 */
-Py_UCS4
-Tokenizer_read(Tokenizer *self, Py_ssize_t delta)
+char
+Tokenizer_read(Tokenizer *self, size_t delta)
 {
-    Py_ssize_t index = self->head + delta;
+    size_t index = self->head + delta;
 
     if (index >= self->text.length) {
         return '\0';
     }
-    return read_codepoint(&self->text, index);
+
+    return self->text.data[index];
 }
 
 /*
     Read the value at a relative point in the wikicode, backwards.
 */
-Py_UCS4
-Tokenizer_read_backwards(Tokenizer *self, Py_ssize_t delta)
+char
+Tokenizer_read_backwards(Tokenizer *self, size_t delta)
 {
-    Py_ssize_t index;
+    size_t index;
 
     if (delta > self->head) {
         return '\0';
     }
-    index = self->head - delta;
-    return read_codepoint(&self->text, index);
+
+    return self->text.data[self->head - delta];
 }
