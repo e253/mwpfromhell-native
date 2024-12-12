@@ -32,6 +32,5 @@ int Textbuffer_reset(Textbuffer*);
 int Textbuffer_write(Textbuffer*, char);
 char Textbuffer_read(Textbuffer*, size_t);
 char* Textbuffer_export(Textbuffer*);
-// PyObject *Textbuffer_render(Textbuffer *);
 int Textbuffer_concat(Textbuffer*, Textbuffer*);
 void Textbuffer_reverse(Textbuffer*);

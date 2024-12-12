@@ -112,9 +112,13 @@ Textbuffer_concat(Textbuffer *self, Textbuffer *other)
     return 0;
 }
 
+/*
+    Null terminated char buffer owned by the caller
+*/
 char * Textbuffer_export(Textbuffer *self) {
-    char* data = malloc(self->length);
+    char* data = malloc(self->length + 1);
     memcpy(data, self->data, self->length);
+    data[self->length] = 0;
     return data;
 }
 

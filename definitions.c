@@ -96,16 +96,17 @@ static const char *PARSER_BLACKLIST[] = {
 };
 // clang-format on
 
-static const char *SINGLE[] = {
-    "br", "wbr", "hr", "meta", "link", "img", "li", "dt", "dd", "th", "td", "tr", NULL};
+static const char* SINGLE[] = {
+    "br", "wbr", "hr", "meta", "link", "img", "li", "dt", "dd", "th", "td", "tr", NULL
+};
 
-static const char *SINGLE_ONLY[] = {"br", "wbr", "hr", "meta", "link", "img", NULL};
+static const char* SINGLE_ONLY[] = { "br", "wbr", "hr", "meta", "link", "img", NULL };
 
 /*
     Return whether a PyUnicodeObject is in a list of lowercase ASCII strings.
 */
 static inline int
-string_in_string_list(char *input, size_t input_len, const char **list)
+string_in_string_list(char* input, size_t input_len, const char** list)
 {
     int i = 0;
     const char* target = list[i];
@@ -123,8 +124,7 @@ string_in_string_list(char *input, size_t input_len, const char **list)
 /*
     Return if the given tag's contents should be passed to the parser.
 */
-int
-is_parsable(char *tag, size_t tag_len)
+int is_parsable(char* tag, size_t tag_len)
 {
     return !string_in_string_list(tag, tag_len, PARSER_BLACKLIST);
 }
@@ -132,8 +132,7 @@ is_parsable(char *tag, size_t tag_len)
 /*
     Return whether or not the given tag can exist without a close tag.
 */
-int
-is_single(char *tag, size_t tag_len)
+int is_single(char* tag, size_t tag_len)
 {
     return string_in_string_list(tag, tag_len, SINGLE);
 }
@@ -141,8 +140,7 @@ is_single(char *tag, size_t tag_len)
 /*
     Return whether or not the given tag must exist without a close tag.
 */
-int
-is_single_only(char *tag, size_t tag_len)
+int is_single_only(char* tag, size_t tag_len)
 {
     return string_in_string_list(tag, tag_len, SINGLE_ONLY);
 }
@@ -150,8 +148,7 @@ is_single_only(char *tag, size_t tag_len)
 /*
     Return whether the given scheme is valid for external links.
 */
-int
-is_scheme(char *scheme, size_t scheme_len, int slashes)
+int is_scheme(char* scheme, size_t scheme_len, int slashes)
 {
     if (slashes) {
         return string_in_string_list(scheme, scheme_len, URI_SCHEMES);

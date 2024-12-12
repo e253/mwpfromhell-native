@@ -27,6 +27,11 @@ fn textFromTextTok(t: c.Token) []const u8 {
     return std.mem.sliceTo(@as([*c]u8, @ptrCast(t.ctx.data)), 0);
 }
 
+fn expectTextTokEql(expected: []const u8, t: c.Token) !void {
+    try expect(t.type == c.Text);
+    try eqlStr(expected, textFromTextTok(t));
+}
+
 // *************
 // HTML Entities
 // *************
@@ -407,4 +412,179 @@ test "a comment that only has a < and !" {
     try expect(tokenlist.len == 1);
     try expect(tokenlist.tokens[0].type == c.Text);
     try eqlStr("<!foo", textFromTextTok(tokenlist.tokens[0]));
+}
+
+// *************
+// Headings
+// *************
+
+test "basic level 1-6 headings" {
+    inline for (1..7) |level| {
+        const heading_marker = "=" ** level;
+        const txt = heading_marker ++ " Heading " ++ heading_marker;
+
+        var tokenizer = std.mem.zeroes(c.Tokenizer);
+        tokenizer.text.data = @constCast(txt.ptr);
+        tokenizer.text.length = txt.len;
+
+        const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+
+        try expect(tokenlist.len == 3);
+        try expect(tokenlist.tokens[0].type == c.HeadingStart);
+        try expect(tokenlist.tokens[0].ctx.heading.level == level);
+        try expectTextTokEql(" Heading ", tokenlist.tokens[1]);
+        try expect(tokenlist.tokens[2].type == c.HeadingEnd);
+    }
+}
+
+test "a level-6 heading that pretends to be a level-7 heading" {
+    const txt = "======= Heading =======";
+
+    var tokenizer = std.mem.zeroes(c.Tokenizer);
+    tokenizer.text.data = @constCast(txt.ptr);
+    tokenizer.text.length = txt.len;
+
+    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+
+    try expect(tokenlist.len == 3);
+    try expect(tokenlist.tokens[0].type == c.HeadingStart);
+    try expect(tokenlist.tokens[0].ctx.heading.level == 6);
+    try expectTextTokEql("= Heading =", tokenlist.tokens[1]);
+    try expect(tokenlist.tokens[2].type == c.HeadingEnd);
+}
+
+test "a level-2 heading that pretends to be a level-3 heading" {
+    const txt = "=== Heading ==";
+
+    var tokenizer = std.mem.zeroes(c.Tokenizer);
+    tokenizer.text.data = @constCast(txt.ptr);
+    tokenizer.text.length = txt.len;
+
+    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+
+    try expect(tokenlist.len == 3);
+    try expect(tokenlist.tokens[0].type == c.HeadingStart);
+    try expect(tokenlist.tokens[0].ctx.heading.level == 2);
+    try expectTextTokEql("= Heading ", tokenlist.tokens[1]);
+    try expect(tokenlist.tokens[2].type == c.HeadingEnd);
+}
+
+test "a level-4 heading that pretends to be a level-6 heading" {
+    const txt = "==== Heading ======";
+
+    var tokenizer = std.mem.zeroes(c.Tokenizer);
+    tokenizer.text.data = @constCast(txt.ptr);
+    tokenizer.text.length = txt.len;
+
+    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+
+    try expect(tokenlist.len == 3);
+    try expect(tokenlist.tokens[0].type == c.HeadingStart);
+    try expect(tokenlist.tokens[0].ctx.heading.level == 4);
+    try expectTextTokEql(" Heading ==", tokenlist.tokens[1]);
+    try expect(tokenlist.tokens[2].type == c.HeadingEnd);
+}
+
+test "a heading that starts after a newline" {
+    const txt = "This is some text.\n== Foobar ==\nbaz";
+
+    var tokenizer = std.mem.zeroes(c.Tokenizer);
+    tokenizer.text.data = @constCast(txt.ptr);
+    tokenizer.text.length = txt.len;
+
+    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+
+    try expect(tokenlist.len == 5);
+    try expectTextTokEql("This is some text.\n", tokenlist.tokens[0]);
+    try expect(tokenlist.tokens[1].type == c.HeadingStart);
+    try expect(tokenlist.tokens[1].ctx.heading.level == 2);
+    try expectTextTokEql(" Foobar ", tokenlist.tokens[2]);
+    try expect(tokenlist.tokens[3].type == c.HeadingEnd);
+    try expectTextTokEql("\nbaz", tokenlist.tokens[4]);
+}
+
+test "text on the same line after" {
+    const txt = "This is some text.\n== Foobar == baz";
+
+    var tokenizer = std.mem.zeroes(c.Tokenizer);
+    tokenizer.text.data = @constCast(txt.ptr);
+    tokenizer.text.length = txt.len;
+
+    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+
+    try expect(tokenlist.len == 5);
+    try expectTextTokEql("This is some text.\n", tokenlist.tokens[0]);
+    try expect(tokenlist.tokens[1].type == c.HeadingStart);
+    try expect(tokenlist.tokens[1].ctx.heading.level == 2);
+    try expectTextTokEql(" Foobar ", tokenlist.tokens[2]);
+    try expect(tokenlist.tokens[3].type == c.HeadingEnd);
+    try expectTextTokEql(" baz", tokenlist.tokens[4]);
+}
+
+test "invalid headings: text on the same line before" {
+    const txt = "This is some text. == Foobar ==\nbaz";
+
+    var tokenizer = std.mem.zeroes(c.Tokenizer);
+    tokenizer.text.data = @constCast(txt.ptr);
+    tokenizer.text.length = txt.len;
+
+    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+
+    try expect(tokenlist.len == 1);
+    try expectTextTokEql("This is some text. == Foobar ==\nbaz", tokenlist.tokens[0]);
+}
+
+test "invalid headings: newline in the middle" {
+    const txt = "This is some text.\n== Foo\nbar ==";
+
+    var tokenizer = std.mem.zeroes(c.Tokenizer);
+    tokenizer.text.data = @constCast(txt.ptr);
+    tokenizer.text.length = txt.len;
+
+    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+
+    try expect(tokenlist.len == 1);
+    try expectTextTokEql("This is some text.\n== Foo\nbar ==", tokenlist.tokens[0]);
+}
+
+test "invalid headings: newline in the middle 2" {
+    const txt = "This is some text.\n=== Foo\nbar ===";
+
+    var tokenizer = std.mem.zeroes(c.Tokenizer);
+    tokenizer.text.data = @constCast(txt.ptr);
+    tokenizer.text.length = txt.len;
+
+    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+
+    try expect(tokenlist.len == 1);
+    try expectTextTokEql("This is some text.\n=== Foo\nbar ===", tokenlist.tokens[0]);
+}
+
+test "invalid headings: attempts at nesting" {
+    const txt = "== Foo === Bar === Baz ==";
+
+    var tokenizer = std.mem.zeroes(c.Tokenizer);
+    tokenizer.text.data = @constCast(txt.ptr);
+    tokenizer.text.length = txt.len;
+
+    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+
+    try expect(tokenlist.len == 3);
+    try expect(tokenlist.tokens[0].type == c.HeadingStart);
+    try expect(tokenlist.tokens[0].ctx.heading.level == 2);
+    try expectTextTokEql(" Foo === Bar === Baz ", tokenlist.tokens[1]);
+    try expect(tokenlist.tokens[2].type == c.HeadingEnd);
+}
+
+test "a heading that starts but doesn't finish" {
+    const txt = "Foobar. \n== Heading ";
+
+    var tokenizer = std.mem.zeroes(c.Tokenizer);
+    tokenizer.text.data = @constCast(txt.ptr);
+    tokenizer.text.length = txt.len;
+
+    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+
+    try expect(tokenlist.len == 1);
+    try expectTextTokEql("Foobar. \n== Heading ", tokenlist.tokens[0]);
 }
