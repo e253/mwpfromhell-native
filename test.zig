@@ -8,12 +8,12 @@ const c = @cImport({
     @cInclude("tokens.h");
 });
 
-fn printTokens(tokenlist: *c.TokenList) void {
+fn printTokens(tokenlist: c.TokenList) void {
     var i: u32 = 0;
     while (i < tokenlist.len) : (i += 1) {
         const token = tokenlist.tokens[i];
         if (token.type == c.Text) {
-            std.debug.print("Text(\"{s}\")", .{@as([*c]u8, @ptrCast(token.ctx.data))});
+            std.debug.print("Text(\"{s}\")", .{@as([*c]const u8, @ptrCast(token.ctx.data))});
         } else {
             std.debug.print("{s}", .{c.TokenTypeString(token.type)});
         }
@@ -32,6 +32,16 @@ fn expectTextTokEql(expected: []const u8, t: c.Token) !void {
     try eqlStr(expected, textFromTextTok(t));
 }
 
+fn tokenize(txt: []const u8) c.TokenList {
+    var tokenizer = std.mem.zeroes(c.Tokenizer);
+    tokenizer.text.data = @constCast(txt.ptr);
+    tokenizer.text.length = txt.len;
+
+    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+
+    return tokenlist.*;
+}
+
 // **************
 // Text / Unicode
 // **************
@@ -39,11 +49,7 @@ fn expectTextTokEql(expected: []const u8, t: c.Token) !void {
 test "sanity check for basic text parsing, no gimmicks" {
     const txt = "foobar";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expectTextTokEql("foobar", tokenlist.tokens[0]);
@@ -52,11 +58,7 @@ test "sanity check for basic text parsing, no gimmicks" {
 test "slightly more complex text parsing, with newlines" {
     const txt = "This is a line of text.\nThis is another line of text.\nThis is another.";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expectTextTokEql("This is a line of text.\nThis is another line of text.\nThis is another.", tokenlist.tokens[0]);
@@ -65,11 +67,7 @@ test "slightly more complex text parsing, with newlines" {
 test "ensure unicode data is handled properly" {
     const txt = "Thís ís å sëñtënce with diœcritiçs.";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expectTextTokEql("Thís ís å sëñtënce with diœcritiçs.", tokenlist.tokens[0]);
@@ -79,11 +77,7 @@ test "additional unicode check for non-BMP codepoints" {
     // 𐌲𐌿𐍄𐌰𐍂𐌰𐌶𐌳𐌰
     const txt = "\xf0\x90\x8c\xb2\xf0\x90\x8c\xbf\xf0\x90\x8d\x84\xf0\x90\x8c\xb0\xf0\x90\x8d\x82\xf0\x90\x8c\xb0\xf0\x90\x8c\xb6\xf0\x90\x8c\xb3\xf0\x90\x8c\xb0";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expectTextTokEql(txt, tokenlist.tokens[0]);
@@ -92,11 +86,7 @@ test "additional unicode check for non-BMP codepoints" {
 test "a lot of text, requiring proper storage in the C tokenizer" {
     const txt = "ZWfsZYcZyhGbkDYJiguJuuhsNyHGFkFhnjkbLJyXIygTHqcXdhsDkEOTSIKYlBiohLIkiXxvyebUyCGvvBcYqFdtcftGmaAanKXEIyYSEKlTfEEbdGhdePVwVImOyKiHSzAEuGyEVRIKPZaNjQsYqpqARIQfvAklFtQyTJVGlLwjJIxYkiqmHBmdOvTyNqJRbMvouoqXRyOhYDwowtkcZGSOcyzVxibQdnzhDYbrgbatUrlOMRvFSzmLWHRihtXnddwYadPgFWUOxAzAgddJVDXHerawdkrRuWaEXfuwQSkQUmLEJUmrgXDVlXCpciaisfuOUjBldElygamkkXbewzLucKRnAEBimIIotXeslRRhnqQjrypnLQvvdCsKFWPVTZaHvzJMFEahDHWcCbyXgxFvknWjhVfiLSDuFhGoFxqSvhjnnRZLmCMhmWeOgSoanDEInKTWHnbpKyUlabLppITDFFxyWKAnUYJQIcmYnrvMmzmtYvsbCYbebgAhMFVVFAKUSvlkLFYluDpbpBaNFWyfXTaOdSBrfiHDTWGBTUCXMqVvRCIMrEjWpQaGsABkioGnveQWqBTDdRQlxQiUipwfyqAocMddXqdvTHhEwjEzMkOSWVPjJvDtClhYwpvRztPmRKCSpGIpXQqrYtTLmShFdpKtOxGtGOZYIdyUGPjdmyvhJTQMtgYJWUUZnecRjBfQXsyWQWikyONySLzLEqRFqcJYdRNFcGwWZtfZasfFWcvdsHRXoqKlKYihRAOJdrPBDdxksXFwKceQVncmFXfUfBsNgjKzoObVExSnRnjegeEhqxXzPmFcuiasViAFeaXrAxXhSfSyCILkKYpjxNeKynUmdcGAbwRwRnlAFbOSCafmzXddiNpLCFTHBELvArdXFpKUGpSHRekhrMedMRNkQzmSyFKjVwiWwCvbNWjgxJRzYeRxHiCCRMXktmKBxbxGZvOpvZIJOwvGIxcBLzsMFlDqAMLtScdsJtrbIUAvKfcdChXGnBzIxGxXMgxJhayrziaCswdpjJJJhkaYnGhHXqZwOzHFdhhUIEtfjERdLaSPRTDDMHpQtonNaIgXUYhjdbnnKppfMBxgNSOOXJAPtFjfAKnrRDrumZBpNhxMstqjTGBViRkDqbTdXYUirsedifGYzZpQkvdNhtFTOPgsYXYCwZHLcSLSfwfpQKtWfZuRUUryHJsbVsAOQcIJdSKKlOvCeEjUQNRPHKXuBJUjPuaAJJxcDMqyaufqfVwUmHLdjeYZzSiiGLHOTCInpVAalbXXTMLugLiwFiyPSuSFiyJUKVrWjbZAHaJtZnQmnvorRrxdPKThqXzNgTjszQiCoMczRnwGYJMERUWGXFyrSbAqsHmLwLlnJOJoXNsjVehQjVOpQOQJAZWwFZBlgyVIplzLTlFwumPgBLYrUIAJAcmvHPGfHfWQguCjfTYzxYfbohaLFAPwxFRrNuCdCzLlEbuhyYjCmuDBTJDMCdLpNRVqEALjnPSaBPsKWRCKNGwEMFpiEWbYZRwaMopjoUuBUvMpvyLfsPKDrfQLiFOQIWPtLIMoijUEUYfhykHrSKbTtrvjwIzHdWZDVwLIpNkloCqpzIsErxxKAFuFEjikWNYChqYqVslXMtoSWzNhbMuxYbzLfJIcPGoUeGPkGyPQNhDyrjgdKekzftFrRPTuyLYqCArkDcWHTrjPQHfoThBNnTQyMwLEWxEnBXLtzJmFVLGEPrdbEwlXpgYfnVnWoNXgPQKKyiXifpvrmJATzQOzYwFhliiYxlbnsEPKbHYUfJLrwYPfSUwTIHiEvBFMrEtVmqJobfcwsiiEudTIiAnrtuywgKLOiMYbEIOAOJdOXqroPjWnQQcTNxFvkIEIsuHLyhSqSphuSmlvknzydQEnebOreeZwOouXYKlObAkaWHhOdTFLoMCHOWrVKeXjcniaxtgCziKEqWOZUWHJQpcDJzYnnduDZrmxgjZroBRwoPBUTJMYipsgJwbTSlvMyXXdAmiEWGMiQxhGvHGPLOKeTxNaLnFVbWpiYIVyqN";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expectTextTokEql(txt, tokenlist.tokens[0]);
@@ -109,11 +99,7 @@ test "a lot of text, requiring proper storage in the C tokenizer" {
 test "a basic named HTML entity" {
     const txt: []const u8 = "&nbsp;";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 3);
 
@@ -126,11 +112,7 @@ test "a basic named HTML entity" {
 test "a basic decimal HTML entity" {
     const txt: []const u8 = "&#107;";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 4);
 
@@ -144,11 +126,7 @@ test "a basic decimal HTML entity" {
 test "a basic hexadecimal HTML entity, using 'x' as a signal" {
     const txt: []const u8 = "&#x6B;";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 5);
 
@@ -163,11 +141,7 @@ test "a basic hexadecimal HTML entity, using 'x' as a signal" {
 test "a basic hexadecimal HTML entity, using 'X' as a signal" {
     const txt: []const u8 = "&#X6B;";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 5);
 
@@ -182,11 +156,7 @@ test "a basic hexadecimal HTML entity, using 'X' as a signal" {
 test "the maximum acceptable decimal numeric entity" {
     const txt: []const u8 = "&#1114111;";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 4);
 
@@ -200,11 +170,7 @@ test "the maximum acceptable decimal numeric entity" {
 test "the maximum acceptable hexadecimal numeric entity" {
     const txt: []const u8 = "&#x10FFFF;";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 5);
 
@@ -219,11 +185,7 @@ test "the maximum acceptable hexadecimal numeric entity" {
 test "zeros accepted at the beginning of a numeric entity" {
     const txt: []const u8 = "&#0000000107;";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 4);
 
@@ -237,11 +199,7 @@ test "zeros accepted at the beginning of a numeric entity" {
 test "zeros accepted at the beginning of a hex numeric entity" {
     const txt: []const u8 = "&#x0000000107;";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 5);
 
@@ -256,11 +214,7 @@ test "zeros accepted at the beginning of a hex numeric entity" {
 test "a named entity that is too long" {
     const txt: []const u8 = "&sigmaSigma;";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expect(tokenlist.tokens[0].type == c.Text);
@@ -270,11 +224,7 @@ test "a named entity that is too long" {
 test "a named entity that doesn't exist" {
     const txt: []const u8 = "&foobar;";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
     _ = tokenlist;
 
     return error.SkipZigTest;
@@ -289,11 +239,7 @@ test "a named entity that doesn't exist" {
 test "a named entity with non-ASCII characters" {
     const txt: []const u8 = "&sígma;";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expect(tokenlist.tokens[0].type == c.Text);
@@ -303,11 +249,7 @@ test "a named entity with non-ASCII characters" {
 test "a numeric entity that is out of range: < 1" {
     const txt: []const u8 = "&#0;";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expect(tokenlist.tokens[0].type == c.Text);
@@ -317,11 +259,7 @@ test "a numeric entity that is out of range: < 1" {
 test "a hex numeric entity that is out of range: < 1" {
     const txt: []const u8 = "&x0;";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
     _ = tokenlist;
 
     return error.SkipZigTest;
@@ -334,11 +272,7 @@ test "a hex numeric entity that is out of range: < 1" {
 test "a numeric entity that is out of range: > 0x10FFFF" {
     const txt: []const u8 = "&#1114112;";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expect(tokenlist.tokens[0].type == c.Text);
@@ -348,11 +282,7 @@ test "a numeric entity that is out of range: > 0x10FFFF" {
 test "a hex numeric entity that is out of range: > 0x10FFFF" {
     const txt: []const u8 = "&#x0110000;";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expect(tokenlist.tokens[0].type == c.Text);
@@ -385,11 +315,7 @@ test "Invalid entities" {
 test "a blank comment" {
     const txt: []const u8 = "<!---->";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 2);
     try expect(tokenlist.tokens[0].type == c.CommentStart);
@@ -399,11 +325,7 @@ test "a blank comment" {
 test "a basic comment" {
     const txt: []const u8 = "<!-- comment -->";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 3);
     try expect(tokenlist.tokens[0].type == c.CommentStart);
@@ -415,11 +337,7 @@ test "a basic comment" {
 test "a comment with tons of ignorable garbage in it" {
     const txt: []const u8 = "<!-- foo{{bar}}[[basé\n\n]{}{}{}{}]{{{{{{haha{{--a>aa<!--aa -->";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 3);
     try expect(tokenlist.tokens[0].type == c.CommentStart);
@@ -431,11 +349,7 @@ test "a comment with tons of ignorable garbage in it" {
 test "a comment that doesn't close" {
     const txt: []const u8 = "<!--";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expect(tokenlist.tokens[0].type == c.Text);
@@ -445,11 +359,7 @@ test "a comment that doesn't close" {
 test "a comment that doesn't close, with text" {
     const txt: []const u8 = "<!-- foo";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expect(tokenlist.tokens[0].type == c.Text);
@@ -459,11 +369,7 @@ test "a comment that doesn't close, with text" {
 test "a comment that doesn't close, with a partial close" {
     const txt: []const u8 = "<!-- foo --\x01>";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expect(tokenlist.tokens[0].type == c.Text);
@@ -473,11 +379,7 @@ test "a comment that doesn't close, with a partial close" {
 test "a comment that only has a < and !" {
     const txt: []const u8 = "<!foo";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expect(tokenlist.tokens[0].type == c.Text);
@@ -510,11 +412,7 @@ test "basic level 1-6 headings" {
 test "a level-6 heading that pretends to be a level-7 heading" {
     const txt = "======= Heading =======";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 3);
     try expect(tokenlist.tokens[0].type == c.HeadingStart);
@@ -526,11 +424,7 @@ test "a level-6 heading that pretends to be a level-7 heading" {
 test "a level-2 heading that pretends to be a level-3 heading" {
     const txt = "=== Heading ==";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 3);
     try expect(tokenlist.tokens[0].type == c.HeadingStart);
@@ -542,11 +436,7 @@ test "a level-2 heading that pretends to be a level-3 heading" {
 test "a level-4 heading that pretends to be a level-6 heading" {
     const txt = "==== Heading ======";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 3);
     try expect(tokenlist.tokens[0].type == c.HeadingStart);
@@ -558,11 +448,7 @@ test "a level-4 heading that pretends to be a level-6 heading" {
 test "a heading that starts after a newline" {
     const txt = "This is some text.\n== Foobar ==\nbaz";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 5);
     try expectTextTokEql("This is some text.\n", tokenlist.tokens[0]);
@@ -576,11 +462,7 @@ test "a heading that starts after a newline" {
 test "text on the same line after" {
     const txt = "This is some text.\n== Foobar == baz";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 5);
     try expectTextTokEql("This is some text.\n", tokenlist.tokens[0]);
@@ -594,11 +476,7 @@ test "text on the same line after" {
 test "invalid headings: text on the same line before" {
     const txt = "This is some text. == Foobar ==\nbaz";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expectTextTokEql("This is some text. == Foobar ==\nbaz", tokenlist.tokens[0]);
@@ -607,11 +485,7 @@ test "invalid headings: text on the same line before" {
 test "invalid headings: newline in the middle" {
     const txt = "This is some text.\n== Foo\nbar ==";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expectTextTokEql("This is some text.\n== Foo\nbar ==", tokenlist.tokens[0]);
@@ -620,11 +494,7 @@ test "invalid headings: newline in the middle" {
 test "invalid headings: newline in the middle 2" {
     const txt = "This is some text.\n=== Foo\nbar ===";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expectTextTokEql("This is some text.\n=== Foo\nbar ===", tokenlist.tokens[0]);
@@ -633,11 +503,7 @@ test "invalid headings: newline in the middle 2" {
 test "invalid headings: attempts at nesting" {
     const txt = "== Foo === Bar === Baz ==";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 3);
     try expect(tokenlist.tokens[0].type == c.HeadingStart);
@@ -649,12 +515,229 @@ test "invalid headings: attempts at nesting" {
 test "a heading that starts but doesn't finish" {
     const txt = "Foobar. \n== Heading ";
 
-    var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
-    tokenizer.text.length = txt.len;
-
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    const tokenlist = tokenize(txt);
 
     try expect(tokenlist.len == 1);
     try expectTextTokEql("Foobar. \n== Heading ", tokenlist.tokens[0]);
+}
+
+// *******
+// Styling
+// *******
+
+test "basic italic text" {
+    const txt = "''text''";
+
+    const tokenlist = tokenize(txt);
+
+    try expect(tokenlist.len == 3);
+    try expect(tokenlist.tokens[0].type == c.ItalicOpen);
+    try expectTextTokEql("text", tokenlist.tokens[1]);
+    try expect(tokenlist.tokens[2].type == c.ItalicClose);
+}
+
+test "basic bold text" {
+    const txt = "'''text'''";
+
+    const tokenlist = tokenize(txt);
+
+    try expect(tokenlist.len == 3);
+    try expect(tokenlist.tokens[0].type == c.BoldOpen);
+    try expectTextTokEql("text", tokenlist.tokens[1]);
+    try expect(tokenlist.tokens[2].type == c.BoldClose);
+}
+
+test "basic unordered list" {
+    const txt = "*text";
+
+    const tokenlist = tokenize(txt);
+
+    try expect(tokenlist.len == 2);
+    try expect(tokenlist.tokens[0].type == c.UnorderedListItem);
+    try expectTextTokEql("text", tokenlist.tokens[1]);
+}
+
+test "basic ordered list" {
+    const txt = "#text";
+
+    const tokenlist = tokenize(txt);
+
+    try expect(tokenlist.len == 2);
+    try expect(tokenlist.tokens[0].type == c.OrderedListItem);
+    try expectTextTokEql("text", tokenlist.tokens[1]);
+}
+
+test "basic description term" {
+    const txt = ";text";
+
+    const tokenlist = tokenize(txt);
+
+    try expect(tokenlist.len == 2);
+    try expect(tokenlist.tokens[0].type == c.DescriptionTerm);
+    try expectTextTokEql("text", tokenlist.tokens[1]);
+}
+
+test "basic description item" {
+    const txt = ":text";
+
+    const tokenlist = tokenize(txt);
+
+    try expect(tokenlist.len == 2);
+    try expect(tokenlist.tokens[0].type == c.DescriptionItem);
+    try expectTextTokEql("text", tokenlist.tokens[1]);
+}
+
+test "basic horizontal rule" {
+    const txt = "----";
+
+    const tokenlist = tokenize(txt);
+
+    try expect(tokenlist.len == 1);
+    try expect(tokenlist.tokens[0].type == c.HR);
+}
+
+test "italics with a lot in them" {
+    //const txt = "''this is a&nbsp;test of [[Italic text|italics]] with {{plenty|of|stuff}}";
+
+    //var tokenizer = std.mem.zeroes(c.Tokenizer);
+    //tokenizer.text.data = @constCast(txt.ptr);
+    //tokenizer.text.length = txt.len;
+
+    //const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    //_ = tokenlist;
+
+    return error.SkipZigTest;
+}
+
+test "italics spanning mulitple lines" {
+    const txt = "foo\nbar''testing\ntext\nspanning\n\n\n\n\nmultiple\nlines''foo\n\nbar";
+
+    const tokenlist = tokenize(txt);
+
+    try expect(tokenlist.len == 5);
+    try expectTextTokEql("foo\nbar", tokenlist.tokens[0]);
+    try expect(tokenlist.tokens[1].type == c.ItalicOpen);
+    try expectTextTokEql("testing\ntext\nspanning\n\n\n\n\nmultiple\nlines", tokenlist.tokens[2]);
+    try expect(tokenlist.tokens[3].type == c.ItalicClose);
+    try expectTextTokEql("foo\n\nbar", tokenlist.tokens[4]);
+}
+
+test "italics without an ending tag" {
+    const txt = "''unending formatting";
+    const tokenlist = tokenize(txt);
+
+    try expect(tokenlist.len == 1);
+    try expectTextTokEql(txt, tokenlist.tokens[0]);
+}
+
+test "italics with something that looks like an end but isn't" {
+    //const txt = "''this is 'not' the en'd'<nowiki>''</nowiki>";
+    //const tokenlist = tokenize(txt);
+    return error.SkipZigTest;
+}
+
+test "italics that start outside a link and end inside it" {
+    //const txt = "''foo[[bar|baz'']]spam";
+    return error.SkipZigTest;
+}
+
+test "bold with a lot in it" {
+    //const txt = "'''this is a&nbsp;test of [[Bold text|bold]] with {{plenty|of|stuff}}'''";
+    return error.SkipZigTest;
+}
+
+test "bold spanning mulitple lines" {
+    const txt = "foo\nbar'''testing\ntext\nspanning\n\n\n\n\nmultiple\nlines'''foo\n\nbar";
+
+    const tokenlist = tokenize(txt);
+
+    try expect(tokenlist.len == 5);
+    try expectTextTokEql("foo\nbar", tokenlist.tokens[0]);
+    try expect(tokenlist.tokens[1].type == c.BoldOpen);
+    try expectTextTokEql("testing\ntext\nspanning\n\n\n\n\nmultiple\nlines", tokenlist.tokens[2]);
+    try expect(tokenlist.tokens[3].type == c.BoldClose);
+    try expectTextTokEql("foo\n\nbar", tokenlist.tokens[4]);
+}
+
+test "bold without an ending tag" {
+    const txt = "'''unending formatting!";
+
+    const tokenlist = tokenize(txt);
+
+    try expect(tokenlist.len == 1);
+    try expectTextTokEql("'''unending formatting!", tokenlist.tokens[0]);
+}
+
+test "bold with something that looks like an end but isn't" {
+    //const txt = "'''this is 'not' the en''d'<nowiki>'''</nowiki>";
+    //const tokenlist = tokenize(txt);
+    return error.SkipZigTest;
+}
+
+test "bold that start outside a link and end inside it" {
+    //const txt = "'''foo[[bar|baz''']]spam";
+    return error.SkipZigTest;
+}
+
+test "bold and italics together" {
+    const txt = "this is '''''bold and italic text'''''!";
+    const tokenlist = tokenize(txt);
+
+    try expect(tokenlist.len == 7);
+    try expectTextTokEql("this is ", tokenlist.tokens[0]);
+    try expect(tokenlist.tokens[1].type == c.ItalicOpen);
+    try expect(tokenlist.tokens[2].type == c.BoldOpen);
+    try expectTextTokEql("bold and italic text", tokenlist.tokens[3]);
+    try expect(tokenlist.tokens[4].type == c.BoldClose);
+    try expect(tokenlist.tokens[5].type == c.ItalicClose);
+    try expectTextTokEql("!", tokenlist.tokens[6]);
+}
+
+test "text that starts bold/italic, then is just bold" {
+    //const txt = "'''''both''bold'''";
+    // const tokenlist = tokenize(txt);
+    // Currently Text("''"), BoldOpen, Text("both''bold"), BoldClose
+    // Should be: BoldOpen, ItalicOpen, Text("both"), ItalicClose, Text("bold"), BoldClose
+    return error.SkipZigTest;
+}
+
+test "text that starts bold/italic, then is just italics" {
+    const txt = "'''''both'''italics''";
+    const tokenlist = tokenize(txt);
+
+    try expect(tokenlist.len == 6);
+    try expect(tokenlist.tokens[0].type == c.ItalicOpen);
+    try expect(tokenlist.tokens[1].type == c.BoldOpen);
+    try expectTextTokEql("both", tokenlist.tokens[2]);
+    try expect(tokenlist.tokens[3].type == c.BoldClose);
+    try expectTextTokEql("italics", tokenlist.tokens[4]);
+    try expect(tokenlist.tokens[5].type == c.ItalicClose);
+}
+
+test "text that starts just bold, then is bold/italics" {
+    const txt = "''italics'''both'''''";
+    const tokenlist = tokenize(txt);
+
+    try expect(tokenlist.len == 6);
+    try expect(tokenlist.tokens[0].type == c.ItalicOpen);
+    try expectTextTokEql("italics", tokenlist.tokens[1]);
+    try expect(tokenlist.tokens[2].type == c.BoldOpen);
+    try expectTextTokEql("both", tokenlist.tokens[3]);
+    try expect(tokenlist.tokens[4].type == c.BoldClose);
+    try expect(tokenlist.tokens[5].type == c.ItalicClose);
+}
+
+test "text that starts italic, then is bold" {
+    const txt = "none''italics'''''bold'''none";
+    const tokenlist = tokenize(txt);
+
+    try expect(tokenlist.len == 8);
+    try expectTextTokEql("none", tokenlist.tokens[0]);
+    try expect(tokenlist.tokens[1].type == c.ItalicOpen);
+    try expectTextTokEql("italics", tokenlist.tokens[2]);
+    try expect(tokenlist.tokens[3].type == c.ItalicClose);
+    try expect(tokenlist.tokens[4].type == c.BoldOpen);
+    try expectTextTokEql("bold", tokenlist.tokens[5]);
+    try expect(tokenlist.tokens[6].type == c.BoldClose);
+    try expectTextTokEql("none", tokenlist.tokens[7]);
 }

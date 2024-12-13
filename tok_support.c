@@ -28,12 +28,16 @@ SOFTWARE.
 /*
     Add a new token stack, context, and textbuffer to the list.
 */
-int Tokenizer_push(Tokenizer* self, uint64_t context)
+int
+Tokenizer_push(Tokenizer *self, uint64_t context)
 {
-    Stack* top = malloc(sizeof(Stack));
+    assert(self);
+
+    Stack *top = malloc(sizeof(Stack));
     assert(top);
 
     top->tokenlist = TokenList_new(0);
+    assert(top->tokenlist);
     top->context = context;
     top->textbuffer = Textbuffer_new(&self->text);
     assert(top->textbuffer);
@@ -49,18 +53,22 @@ int Tokenizer_push(Tokenizer* self, uint64_t context)
 /*
     Push the textbuffer onto the stack as a Text node and clear it.
 */
-int Tokenizer_push_textbuffer(Tokenizer* self)
+int
+Tokenizer_push_textbuffer(Tokenizer *self)
 {
-    PyObject *text, *kwargs, *token;
-    Textbuffer* buffer = self->topstack->textbuffer;
-
-    if (buffer->length == 0) {
+    assert(self);
+    if (!self->topstack || !self->topstack->textbuffer)
         return 0;
-    }
+
+    Textbuffer *buffer = self->topstack->textbuffer;
+
+    if (buffer->length == 0)
+        return 0;
 
     Token t;
     t.type = Text;
     t.ctx.data = Textbuffer_export(buffer);
+    assert(self->topstack->tokenlist);
     TokenList_append(self->topstack->tokenlist, &t);
 
     Textbuffer_reset(buffer);
@@ -71,9 +79,10 @@ int Tokenizer_push_textbuffer(Tokenizer* self)
 /*
     Pop and deallocate the top token stack/context/textbuffer.
 */
-void Tokenizer_delete_top_of_stack(Tokenizer* self)
+void
+Tokenizer_delete_top_of_stack(Tokenizer *self)
 {
-    Stack* top = self->topstack;
+    Stack *top = self->topstack;
 
     // TODO: Make sure everything is de-allocated here.
 
@@ -86,11 +95,18 @@ void Tokenizer_delete_top_of_stack(Tokenizer* self)
 /*
     Pop the current stack/context/textbuffer, returing the stack.
 */
-TokenList* Tokenizer_pop(Tokenizer* self)
+TokenList *
+Tokenizer_pop(Tokenizer *self)
 {
+    assert(self);
+
     if (Tokenizer_push_textbuffer(self))
         return NULL;
-    TokenList* tl = self->topstack->tokenlist;
+
+    assert(self->topstack);
+    assert(self->topstack->tokenlist);
+
+    TokenList *tl = self->topstack->tokenlist;
     Tokenizer_delete_top_of_stack(self);
     return tl;
 }
@@ -99,14 +115,15 @@ TokenList* Tokenizer_pop(Tokenizer* self)
     Pop the current stack/context/textbuffer, returing the stack. We will also
     replace the underlying stack's context with the current stack's.
 */
-TokenList* Tokenizer_pop_keeping_context(Tokenizer* self)
+TokenList *
+Tokenizer_pop_keeping_context(Tokenizer *self)
 {
     uint64_t context;
 
     if (Tokenizer_push_textbuffer(self)) {
         return NULL;
     }
-    TokenList* tl = self->topstack->tokenlist;
+    TokenList *tl = self->topstack->tokenlist;
     context = self->topstack->context;
     Tokenizer_delete_top_of_stack(self);
     self->topstack->context = context;
@@ -116,11 +133,11 @@ TokenList* Tokenizer_pop_keeping_context(Tokenizer* self)
 /*
     Compare two route_tree_nodes that are in their avl_tree_node forms.
 */
-static int compare_nodes(const struct avl_tree_node* na,
-    const struct avl_tree_node* nb)
+static int
+compare_nodes(const struct avl_tree_node *na, const struct avl_tree_node *nb)
 {
-    route_tree_node* a = avl_tree_entry(na, route_tree_node, node);
-    route_tree_node* b = avl_tree_entry(nb, route_tree_node, node);
+    route_tree_node *a = avl_tree_entry(na, route_tree_node, node);
+    route_tree_node *b = avl_tree_entry(nb, route_tree_node, node);
 
     if (a->id.head < b->id.head) {
         return -1;
@@ -137,9 +154,10 @@ static int compare_nodes(const struct avl_tree_node* na,
     This will be noticed when calling Tokenizer_check_route with the same head
     and context, and the route will be failed immediately.
 */
-void Tokenizer_memoize_bad_route(Tokenizer* self)
+void
+Tokenizer_memoize_bad_route(Tokenizer *self)
 {
-    route_tree_node* node = malloc(sizeof(route_tree_node));
+    route_tree_node *node = malloc(sizeof(route_tree_node));
     if (node) {
         node->id = self->topstack->ident;
         if (avl_tree_insert(&self->bad_routes, &node->node, compare_nodes)) {
@@ -154,10 +172,11 @@ void Tokenizer_memoize_bad_route(Tokenizer* self)
     ident of the failed stack so future parsing attempts down this route can be
     stopped early.
 */
-void* Tokenizer_fail_route(Tokenizer* self)
+void *
+Tokenizer_fail_route(Tokenizer *self)
 {
     uint64_t context = self->topstack->context;
-    PyObject* stack;
+    PyObject *stack;
 
     Tokenizer_memoize_bad_route(self);
     stack = Tokenizer_pop(self);
@@ -179,10 +198,11 @@ void* Tokenizer_fail_route(Tokenizer* self)
     but this would introduce too much overhead in C tokenizer due to the need
     to check for a bad route after every call to Tokenizer_push.)
 */
-int Tokenizer_check_route(Tokenizer* self, uint64_t context)
+int
+Tokenizer_check_route(Tokenizer *self, uint64_t context)
 {
-    StackIdent ident = { self->head, context };
-    struct avl_tree_node* node = (struct avl_tree_node*)(&ident + 1);
+    StackIdent ident = {self->head, context};
+    struct avl_tree_node *node = (struct avl_tree_node *) (&ident + 1);
 
     if (avl_tree_lookup_node(self->bad_routes, node, compare_nodes)) {
         FAIL_ROUTE(context);
@@ -195,12 +215,13 @@ int Tokenizer_check_route(Tokenizer* self, uint64_t context)
     Free the tokenizer's bad route cache tree. Intended to be called by the
     main tokenizer function after parsing is finished.
 */
-void Tokenizer_free_bad_route_tree(Tokenizer* self)
+void
+Tokenizer_free_bad_route_tree(Tokenizer *self)
 {
-    struct avl_tree_node* cur = avl_tree_first_in_postorder(self->bad_routes);
-    struct avl_tree_node* parent;
+    struct avl_tree_node *cur = avl_tree_first_in_postorder(self->bad_routes);
+    struct avl_tree_node *parent;
     while (cur) {
-        route_tree_node* node = avl_tree_entry(cur, route_tree_node, node);
+        route_tree_node *node = avl_tree_entry(cur, route_tree_node, node);
         parent = avl_get_parent(cur);
         free(node);
         cur = avl_tree_next_in_postorder(cur, parent);
@@ -211,11 +232,18 @@ void Tokenizer_free_bad_route_tree(Tokenizer* self)
 /*
     Write a token to the current token stack.
 */
-int Tokenizer_emit_token(Tokenizer* self, Token* token, int first)
+int
+Tokenizer_emit_token(Tokenizer *self, Token *token, int first)
 {
+    assert(self);
+    assert(token);
+
     if (Tokenizer_push_textbuffer(self)) {
         return 1;
     }
+
+    assert(self->topstack);
+    assert(self->topstack->tokenlist);
 
     if (first) {
         TokenList_prepend(self->topstack->tokenlist, token);
@@ -230,8 +258,8 @@ int Tokenizer_emit_token(Tokenizer* self, Token* token, int first)
     Write a token to the current token stack, with kwargs. Steals a reference
     to kwargs.
 */
-int Tokenizer_emit_token_kwargs(Tokenizer* self, Token* token, PyObject* kwargs,
-    int first)
+int
+Tokenizer_emit_token_kwargs(Tokenizer *self, Token *token, PyObject *kwargs, int first)
 {
     BOMB_PY_METHOD(Tokenizer_emit_token_kwargs)
     // PyObject *instance;
@@ -259,7 +287,8 @@ int Tokenizer_emit_token_kwargs(Tokenizer* self, Token* token, PyObject* kwargs,
 /*
     Write a Unicode codepoint to the current textbuffer.
 */
-int Tokenizer_emit_char(Tokenizer* self, char code)
+int
+Tokenizer_emit_char(Tokenizer *self, char code)
 {
     return Textbuffer_write(self->topstack->textbuffer, code);
 }
@@ -267,7 +296,8 @@ int Tokenizer_emit_char(Tokenizer* self, char code)
 /*
     Write a string of text to the current textbuffer.
 */
-int Tokenizer_emit_text(Tokenizer* self, const char* text)
+int
+Tokenizer_emit_text(Tokenizer *self, const char *text)
 {
     int i = 0;
 
@@ -284,7 +314,8 @@ int Tokenizer_emit_text(Tokenizer* self, const char* text)
     Write the contents of another textbuffer to the current textbuffer,
     deallocating it in the process.
 */
-int Tokenizer_emit_textbuffer(Tokenizer* self, Textbuffer* buffer)
+int
+Tokenizer_emit_textbuffer(Tokenizer *self, Textbuffer *buffer)
 {
     int retval = Textbuffer_concat(self->topstack->textbuffer, buffer);
     Textbuffer_dealloc(buffer);
@@ -294,7 +325,8 @@ int Tokenizer_emit_textbuffer(Tokenizer* self, Textbuffer* buffer)
 /*
     Write a series of tokens to the current stack at once.
 */
-int Tokenizer_emit_all(Tokenizer* self, TokenList* tokenlist)
+int
+Tokenizer_emit_all(Tokenizer *self, TokenList *tokenlist)
 {
     if (self == NULL || tokenlist == NULL)
         return 1;
@@ -319,9 +351,10 @@ int Tokenizer_emit_all(Tokenizer* self, TokenList* tokenlist)
     Pop the current stack, write text, and then write the stack. 'text' is a
     NULL-terminated array of chars.
 */
-int Tokenizer_emit_text_then_stack(Tokenizer* self, const char* text)
+int
+Tokenizer_emit_text_then_stack(Tokenizer *self, const char *text)
 {
-    TokenList* tl = Tokenizer_pop(self);
+    TokenList *tl = Tokenizer_pop(self);
 
     if (Tokenizer_emit_text(self, text))
         return -1;
@@ -338,7 +371,8 @@ int Tokenizer_emit_text_then_stack(Tokenizer* self, const char* text)
 /*
     Read the value at a relative point in the wikicode, forwards.
 */
-char Tokenizer_read(Tokenizer* self, size_t delta)
+char
+Tokenizer_read(Tokenizer *self, size_t delta)
 {
     size_t index = self->head + delta;
 
@@ -352,7 +386,8 @@ char Tokenizer_read(Tokenizer* self, size_t delta)
 /*
     Read the value at a relative point in the wikicode, backwards.
 */
-char Tokenizer_read_backwards(Tokenizer* self, size_t delta)
+char
+Tokenizer_read_backwards(Tokenizer *self, size_t delta)
 {
     size_t index;
 

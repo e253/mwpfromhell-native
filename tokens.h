@@ -27,6 +27,18 @@ SOFTWARE.
 typedef enum {
     Text,
 
+    ItalicOpen,
+    ItalicClose,
+    BoldOpen,
+    BoldClose,
+
+    UnorderedListItem,
+    OrderedListItem,
+    DescriptionTerm,
+    DescriptionItem,
+
+    HR,
+
     TemplateOpen,
     TemplateParamSeparator,
     TemplateParamEquals,
@@ -72,6 +84,19 @@ inline const char* TokenTypeString(TokenType tt)
 
     switch (tt) {
         Case_Return(Text);
+
+        Case_Return(ItalicOpen);
+        Case_Return(ItalicClose);
+        Case_Return(BoldOpen);
+        Case_Return(BoldClose);
+
+        Case_Return(UnorderedListItem);
+        Case_Return(OrderedListItem);
+        Case_Return(DescriptionTerm);
+        Case_Return(DescriptionItem);
+
+        Case_Return(HR);
+
         Case_Return(TemplateOpen);
         Case_Return(TemplateParamSeparator);
         Case_Return(TemplateParamEquals);
