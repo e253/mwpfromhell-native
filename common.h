@@ -86,7 +86,7 @@ typedef struct Stack Stack;
 
 typedef struct {
     size_t length;
-    char* data;
+    const char* data;
 } TokenizerInput;
 
 typedef struct avl_tree_node avl_tree;

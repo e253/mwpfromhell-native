@@ -34,12 +34,27 @@ fn expectTextTokEql(expected: []const u8, t: c.Token) !void {
 
 fn tokenize(txt: []const u8) c.TokenList {
     var tokenizer = std.mem.zeroes(c.Tokenizer);
-    tokenizer.text.data = @constCast(txt.ptr);
+    tokenizer.text.data = txt.ptr;
     tokenizer.text.length = txt.len;
 
     const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
 
     return tokenlist.*;
+}
+
+fn cText(txt: [*:0]const u8) [*c]u8 {
+    return @constCast(@ptrCast(txt));
+}
+
+fn expectTokensEql(expected: []const c.Token, actual: c.TokenList) !void {
+    try expect(expected.len == actual.len);
+    for (expected, 0..) |expected_token, i| {
+        const actual_token = actual.tokens[i];
+        try expect(expected_token.type == actual_token.type);
+        if (expected_token.type == c.Text) {
+            try eqlStr(textFromTextTok(expected_token), textFromTextTok(actual_token));
+        }
+    }
 }
 
 // **************
@@ -740,4 +755,47 @@ test "text that starts italic, then is bold" {
     try expectTextTokEql("bold", tokenlist.tokens[5]);
     try expect(tokenlist.tokens[6].type == c.BoldClose);
     try expectTextTokEql("none", tokenlist.tokens[7]);
+}
+
+test "text that starts bold, then is italic" {
+    const txt = "none'''bold'''''italics''none";
+    const tokenlist = tokenize(txt);
+
+    try expect(tokenlist.len == 8);
+    try expectTextTokEql("none", tokenlist.tokens[0]);
+    try expect(tokenlist.tokens[1].type == c.BoldOpen);
+    try expectTextTokEql("bold", tokenlist.tokens[2]);
+    try expect(tokenlist.tokens[3].type == c.BoldClose);
+    try expect(tokenlist.tokens[4].type == c.ItalicOpen);
+    try expectTextTokEql("italics", tokenlist.tokens[5]);
+    try expect(tokenlist.tokens[6].type == c.ItalicClose);
+    try expectTextTokEql("none", tokenlist.tokens[7]);
+}
+
+test "five ticks to open, three to close (bold)" {
+    const txt = "'''''foobar'''";
+    const tokenlist = tokenize(txt);
+
+    const tokenarr = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("''") } },
+        .{ .type = c.BoldOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foobar") } },
+        .{ .type = c.BoldClose },
+    };
+
+    try expectTokensEql(&tokenarr, tokenlist);
+}
+
+test "five ticks to open, two to close (bold)" {
+    const txt = "'''''foobar''";
+    const tokenlist = tokenize(txt);
+
+    const tokenarr = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("'''") } },
+        .{ .type = c.ItalicOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foobar") } },
+        .{ .type = c.ItalicClose },
+    };
+
+    try expectTokensEql(&tokenarr, tokenlist);
 }

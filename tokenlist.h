@@ -1,3 +1,5 @@
+#pragma once
+
 #include "common.h"
 
 TokenList* TokenList_new(size_t capacity);
