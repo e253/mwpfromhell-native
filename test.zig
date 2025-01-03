@@ -47,7 +47,6 @@ fn cText(txt: [*:0]const u8) [*c]u8 {
 }
 
 fn expectTokensEql(expected: []const c.Token, actual: c.TokenList) !void {
-    try expect(expected.len == actual.len);
     for (expected, 0..) |expected_token, i| {
         const actual_token = actual.tokens[i];
         try expect(expected_token.type == actual_token.type);
@@ -55,6 +54,7 @@ fn expectTokensEql(expected: []const c.Token, actual: c.TokenList) !void {
             try eqlStr(textFromTextTok(expected_token), textFromTextTok(actual_token));
         }
     }
+    try expect(expected.len == actual.len);
 }
 
 // **************
@@ -799,3 +799,470 @@ test "five ticks to open, two to close (bold)" {
 
     try expectTokensEql(&tokenarr, tokenlist);
 }
+
+test "four ticks" {
+    const actual = tokenize("foo ''''bar'''' baz");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo '") } },
+        .{ .type = c.BoldOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar'") } },
+        .{ .type = c.BoldClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" baz") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   four_two
+// label:  four ticks to open, two to close
+// input:  "foo ''''bar'' baz"
+// output: [Text(text="foo ''"), TagOpenOpen(wiki_markup="''"), Text(text="i"), TagCloseOpen(), Text(text="bar"), TagOpenClose(), Text(text="i"), TagCloseClose(), Text(text=" baz")]
+test "four ticks to open, two to close" {
+    const actual = tokenize("foo ''''bar'' baz");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo ''") } },
+        .{ .type = c.ItalicOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar") } },
+        .{ .type = c.ItalicClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" baz") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   two_three
+// label:  two ticks to open, three to close
+// input:  "foo ''bar''' baz"
+// output: [Text(text="foo "), TagOpenOpen(wiki_markup="''"), Text(text="i"), TagCloseOpen(), Text(text="bar'"), TagOpenClose(), Text(text="i"), TagCloseClose(), Text(text=" baz")]
+test "two ticks to open, three to close" {
+    const actual = tokenize("foo ''bar''' baz");
+
+    //const expected = [_]c.Token{
+    //    .{ .type = c.Text, .ctx = .{ .data = cText("foo ") } },
+    //    .{ .type = c.ItalicOpen },
+    //    .{ .type = c.Text, .ctx = .{ .data = cText("bar'") } },
+    //    .{ .type = c.ItalicClose },
+    //    .{ .type = c.Text, .ctx = .{ .data = cText(" baz") } },
+    //};
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo ''bar''' baz") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   two_four
+// label:  two ticks to open, four to close
+// input:  "foo ''bar'''' baz"
+// output: [Text(text="foo "), TagOpenOpen(wiki_markup="''"), Text(text="i"), TagCloseOpen(), Text(text="bar''"), TagOpenClose(), Text(text="i"), TagCloseClose(), Text(text=" baz")]
+test "two ticks to open, four to close" {
+    const actual = tokenize("foo ''bar'''' baz");
+
+    //const expected = [_]c.Token{
+    //    .{ .type = c.Text, .ctx = .{ .data = cText("foo ") } },
+    //    .{ .type = c.ItalicOpen },
+    //    .{ .type = c.Text, .ctx = .{ .data = cText("bar''") } },
+    //    .{ .type = c.ItalicClose },
+    //    .{ .type = c.Text, .ctx = .{ .data = cText(" baz") } },
+    //};
+    const expected = [_]c.Token{.{
+        .type = c.Text,
+        .ctx = .{ .data = cText("foo ''bar'''' baz") },
+    }};
+
+    try expectTokensEql(&expected, actual);
+
+    return error.SkipZigTest;
+}
+
+// name:   two_three_two
+// label:  two ticks to open, three to close, two afterwards
+// input:  "foo ''bar''' baz''"
+// output: [Text(text="foo "), TagOpenOpen(wiki_markup="''"), Text(text="i"), TagCloseOpen(), Text(text="bar''' baz"), TagOpenClose(), Text(text="i"), TagCloseClose()]
+test "two ticks to open, three to close, two afterwords" {
+    const actual = tokenize("foo ''bar''' baz''");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo ") } },
+        .{ .type = c.ItalicOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar''' baz") } },
+        .{ .type = c.ItalicClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   two_four_four
+// label:  two ticks to open, four to close, four afterwards
+// input:  "foo ''bar'''' baz''''"
+// output: [Text(text="foo ''bar'"), TagOpenOpen(wiki_markup="'''"), Text(text="b"), TagCloseOpen(), Text(text=" baz'"), TagOpenClose(), Text(text="b"), TagCloseClose()]
+test "two ticks to open, four to close, four afterwards" {
+    const actual = tokenize("foo ''bar'''' baz''''");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo ''bar'") } },
+        .{ .type = c.BoldOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" baz'") } },
+        .{ .type = c.BoldClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   seven
+// label:  seven ticks
+// input:  "'''''''seven'''''''"
+// output: [Text(text="''"), TagOpenOpen(wiki_markup="''"), Text(text="i"), TagCloseOpen(), TagOpenOpen(wiki_markup="'''"), Text(text="b"), TagCloseOpen(), Text(text="seven''"), TagOpenClose(), Text(text="b"), TagCloseClose(), TagOpenClose(), Text(text="i"), TagCloseClose()]
+test "seven ticks" {
+    const actual = tokenize("'''''''seven'''''''");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("''") } },
+        .{ .type = c.ItalicOpen },
+        .{ .type = c.BoldOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("seven''") } },
+        .{ .type = c.BoldClose },
+        .{ .type = c.ItalicClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   unending_bold_and_italics
+// label:  five ticks (bold and italics) that don't end
+// input:  "'''''testing"
+// output: [Text(text="'''''testing")]
+test "five ticks (bold and italics) that don't end" {
+    const actual = tokenize("'''''testing");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("'''''testing") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   complex_ul
+// label:  ul with a lot in it
+// input:  "* this is a&nbsp;test of an [[Unordered list|ul]] with {{plenty|of|stuff}}"
+// output: [TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text=" this is a"), HTMLEntityStart(), Text(text="nbsp"), HTMLEntityEnd(), Text(text="test of an "), WikilinkOpen(), Text(text="Unordered list"), WikilinkSeparator(), Text(text="ul"), WikilinkClose(), Text(text=" with "), TemplateOpen(), Text(text="plenty"), TemplateParamSeparator(), Text(text="of"), TemplateParamSeparator(), Text(text="stuff"), TemplateClose()]
+test "ul with a lot in it" {
+    //const actual = tokenize("* this is a&nbsp;test of an [[Unordered list|ul]] with {{plenty|of|stuff}}");
+
+    //const expected = [_]c.Token{
+    //    .{ .type = c.UnorderedListItem },
+    //    .{ .type = c.Text, .ctx = .{ .data = cText(" this is a") } },
+    //    .{ .type = c.HTMLEntityStart },
+    //    .{ .type = c.Text, .ctx = .{ .data = cText("") } },
+    //};
+
+    //try expectTokensEql(&expected, actual);
+    return error.SkipZigTest;
+}
+
+// name:   ul_multiline_template
+// label:  ul with a template that spans multiple lines
+// input:  "* this has a template with a {{line|\nbreak}}\nthis is not part of the list"
+// output: [TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text=" this has a template with a "), TemplateOpen(), Text(text="line"), TemplateParamSeparator(), Text(text="\nbreak"), TemplateClose(), Text(text="\nthis is not part of the list")]
+test "ul with a template that spans multiple lines" {
+    const actual = tokenize("* this has a template with a {{line|\nbreak}}\nthis is not part of the list");
+
+    const expected = [_]c.Token{
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" this has a template with a ") } },
+        .{ .type = c.TemplateOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("line") } },
+        .{ .type = c.TemplateParamSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("\nbreak") } },
+        .{ .type = c.TemplateClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText("\nthis is not part of the list") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   ul_adjacent
+// label:  multiple adjacent uls
+// input:  "a\n*b\n*c\nd\n*e\nf"
+// output: [Text(text="a\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="b\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="c\nd\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="e\nf")]
+test "multiple adjacent uls" {
+    const actual = tokenize("a\n*b\n*c\nd\n*e\nf");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("a\n") } },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("b\n") } },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("c\nd\n") } },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("e\nf") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   ul_depths
+// label:  multiple adjacent uls, with differing depths
+// input:  "*a\n**b\n***c\n********d\n**e\nf\n***g"
+// output: [TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="a\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="b\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="c\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="d\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="e\nf\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="g")]
+//
+// ---
+//
+// name:   ul_space_before
+// label:  uls with space before them
+// input:  "foo    *bar\n *baz\n*buzz"
+// output: [Text(text="foo    *bar\n *baz\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="buzz")]
+//
+// ---
+//
+// name:   ul_interruption
+// label:  high-depth ul with something blocking it
+// input:  "**f*oobar"
+// output: [TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="f*oobar")]
+//
+// ---
+//
+// name:   complex_ol
+// label:  ol with a lot in it
+// input:  "# this is a&nbsp;test of an [[Ordered list|ol]] with {{plenty|of|stuff}}"
+// output: [TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text=" this is a"), HTMLEntityStart(), Text(text="nbsp"), HTMLEntityEnd(), Text(text="test of an "), WikilinkOpen(), Text(text="Ordered list"), WikilinkSeparator(), Text(text="ol"), WikilinkClose(), Text(text=" with "), TemplateOpen(), Text(text="plenty"), TemplateParamSeparator(), Text(text="of"), TemplateParamSeparator(), Text(text="stuff"), TemplateClose()]
+//
+// ---
+//
+// name:   ol_multiline_template
+// label:  ol with a template that spans moltiple lines
+// input:  "# this has a template with a {{line|\nbreak}}\nthis is not part of the list"
+// output: [TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text=" this has a template with a "), TemplateOpen(), Text(text="line"), TemplateParamSeparator(), Text(text="\nbreak"), TemplateClose(), Text(text="\nthis is not part of the list")]
+//
+// ---
+//
+// name:   ol_adjacent
+// label:  moltiple adjacent ols
+// input:  "a\n#b\n#c\nd\n#e\nf"
+// output: [Text(text="a\n"), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text="b\n"), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text="c\nd\n"), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text="e\nf")]
+//
+// ---
+//
+// name:   ol_depths
+// label:  moltiple adjacent ols, with differing depths
+// input:  "#a\n##b\n###c\n########d\n##e\nf\n###g"
+// output: [TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text="a\n"), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text="b\n"), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text="c\n"), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text="d\n"), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text="e\nf\n"), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text="g")]
+//
+// ---
+//
+// name:   ol_space_before
+// label:  ols with space before them
+// input:  "foo    #bar\n #baz\n#buzz"
+// output: [Text(text="foo    #bar\n #baz\n"), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text="buzz")]
+//
+// ---
+//
+// name:   ol_interruption
+// label:  high-depth ol with something blocking it
+// input:  "##f#oobar"
+// output: [TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text="f#oobar")]
+//
+// ---
+//
+// name:   ul_ol_mix
+// label:  a mix of adjacent uls and ols
+// input:  "*a\n*#b\n*##c\n*##*#*#*d\n*#e\nf\n##*g"
+// output: [TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="a\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text="b\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text="c\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="d\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text="e\nf\n"), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="g")]
+//
+// ---
+//
+// name:   complex_dt
+// label:  dt with a lot in it
+// input:  "; this is a&nbsp;test of an [[description term|dt]] with {{plenty|of|stuff}}"
+// output: [TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text=" this is a"), HTMLEntityStart(), Text(text="nbsp"), HTMLEntityEnd(), Text(text="test of an "), WikilinkOpen(), Text(text="description term"), WikilinkSeparator(), Text(text="dt"), WikilinkClose(), Text(text=" with "), TemplateOpen(), Text(text="plenty"), TemplateParamSeparator(), Text(text="of"), TemplateParamSeparator(), Text(text="stuff"), TemplateClose()]
+//
+// ---
+//
+// name:   dt_multiline_template
+// label:  dt with a template that spans mdttiple lines
+// input:  "; this has a template with a {{line|\nbreak}}\nthis is not part of the list"
+// output: [TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text=" this has a template with a "), TemplateOpen(), Text(text="line"), TemplateParamSeparator(), Text(text="\nbreak"), TemplateClose(), Text(text="\nthis is not part of the list")]
+//
+// ---
+//
+// name:   dt_adjacent
+// label:  mdttiple adjacent dts
+// input:  "a\n;b\n;c\nd\n;e\nf"
+// output: [Text(text="a\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="b\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="c\nd\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="e\nf")]
+//
+// ---
+//
+// name:   dt_depths
+// label:  mdttiple adjacent dts, with differing depths
+// input:  ";a\n;;b\n;;;c\n;;;;;;;;d\n;;e\nf\n;;;g"
+// output: [TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="a\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="b\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="c\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="d\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="e\nf\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="g")]
+//
+// ---
+//
+// name:   dt_space_before
+// label:  dts with space before them
+// input:  "foo    ;bar\n ;baz\n;buzz"
+// output: [Text(text="foo    ;bar\n ;baz\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="buzz")]
+//
+// ---
+//
+// name:   dt_interruption
+// label:  high-depth dt with something blocking it
+// input:  ";;f;oobar"
+// output: [TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="f;oobar")]
+//
+// ---
+//
+// name:   complex_dd
+// label:  dd with a lot in it
+// input:  ": this is a&nbsp;test of an [[description item|dd]] with {{plenty|of|stuff}}"
+// output: [TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text=" this is a"), HTMLEntityStart(), Text(text="nbsp"), HTMLEntityEnd(), Text(text="test of an "), WikilinkOpen(), Text(text="description item"), WikilinkSeparator(), Text(text="dd"), WikilinkClose(), Text(text=" with "), TemplateOpen(), Text(text="plenty"), TemplateParamSeparator(), Text(text="of"), TemplateParamSeparator(), Text(text="stuff"), TemplateClose()]
+//
+// ---
+//
+// name:   dd_multiline_template
+// label:  dd with a template that spans mddtiple lines
+// input:  ": this has a template with a {{line|\nbreak}}\nthis is not part of the list"
+// output: [TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text=" this has a template with a "), TemplateOpen(), Text(text="line"), TemplateParamSeparator(), Text(text="\nbreak"), TemplateClose(), Text(text="\nthis is not part of the list")]
+//
+// ---
+//
+// name:   dd_adjacent
+// label:  mddtiple adjacent dds
+// input:  "a\n:b\n:c\nd\n:e\nf"
+// output: [Text(text="a\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="b\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="c\nd\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="e\nf")]
+//
+// ---
+//
+// name:   dd_depths
+// label:  mddtiple adjacent dds, with differing depths
+// input:  ":a\n::b\n:::c\n::::::::d\n::e\nf\n:::g"
+// output: [TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="a\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="b\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="c\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="d\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="e\nf\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="g")]
+//
+// ---
+//
+// name:   dd_space_before
+// label:  dds with space before them
+// input:  "foo    :bar\n :baz\n:buzz"
+// output: [Text(text="foo    :bar\n :baz\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="buzz")]
+//
+// ---
+//
+// name:   dd_interruption
+// label:  high-depth dd with something blocking it
+// input:  "::f:oobar"
+// output: [TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="f:oobar")]
+//
+// ---
+//
+// name:   dt_dd_mix
+// label:  a mix of adjacent dts and dds
+// input:  ";a\n;:b\n;::c\n;::;:;:;d\n;:e\nf\n::;g"
+// output: [TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="a\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="b\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="c\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="d\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="e\nf\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="g")]
+//
+// ---
+//
+// name:   dt_dd_mix2
+// label:  the correct usage of a dt/dd unit, as in a dl
+// input:  ";foo:bar:baz"
+// output: [TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="foo"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="bar:baz")]
+//
+// ---
+//
+// name:   dt_dd_mix3
+// label:  another example of correct (but strange) dt/dd usage
+// input:  ":;;::foo:bar:baz"
+// output: [TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="foo"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="bar:baz")]
+//
+// ---
+//
+// name:   dt_dd_mix4
+// label:  another example of correct dt/dd usage, with a trigger for a specific parse route
+// input:  ";foo]:bar"
+// output: [TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="foo]"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="bar")]
+//
+// ---
+//
+// name:   ul_ol_dt_dd_mix
+// label:  an assortment of uls, ols, dds, and dts
+// input:  ";:#*foo\n:#*;foo\n#*;:foo\n*;:#foo"
+// output: [TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="foo\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="foo\n"), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="foo\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text="foo")]
+//
+// ---
+//
+// name:   hr_text_before
+// label:  text before an otherwise-valid hr
+// input:  "foo----"
+// output: [Text(text="foo----")]
+//
+// ---
+//
+// name:   hr_text_after
+// label:  text after a valid hr
+// input:  "----bar"
+// output: [TagOpenOpen(wiki_markup="----"), Text(text="hr"), TagCloseSelfclose(), Text(text="bar")]
+//
+// ---
+//
+// name:   hr_text_before_after
+// label:  text at both ends of an otherwise-valid hr
+// input:  "foo----bar"
+// output: [Text(text="foo----bar")]
+//
+// ---
+//
+// name:   hr_newlines
+// label:  newlines surrounding a valid hr
+// input:  "foo\n----\nbar"
+// output: [Text(text="foo\n"), TagOpenOpen(wiki_markup="----"), Text(text="hr"), TagCloseSelfclose(), Text(text="\nbar")]
+//
+// ---
+//
+// name:   hr_adjacent
+// label:  two adjacent hrs
+// input:  "----\n----"
+// output: [TagOpenOpen(wiki_markup="----"), Text(text="hr"), TagCloseSelfclose(), Text(text="\n"), TagOpenOpen(wiki_markup="----"), Text(text="hr"), TagCloseSelfclose()]
+//
+// ---
+//
+// name:   hr_adjacent_space
+// label:  two adjacent hrs, with a space before the second one, making it invalid
+// input:  "----\n ----"
+// output: [TagOpenOpen(wiki_markup="----"), Text(text="hr"), TagCloseSelfclose(), Text(text="\n ----")]
+//
+// ---
+//
+// name:   hr_short
+// label:  an invalid three-hyphen-long hr
+// input:  "---"
+// output: [Text(text="---")]
+//
+// ---
+//
+// name:   hr_long
+// label:  a very long, valid hr
+// input:  "------------------------------------------"
+// output: [TagOpenOpen(wiki_markup="------------------------------------------"), Text(text="hr"), TagCloseSelfclose()]
+//
+// ---
+//
+// name:   hr_interruption_short
+// label:  a hr that is interrupted, making it invalid
+// input:  "---x-"
+// output: [Text(text="---x-")]
+//
+// ---
+//
+// name:   hr_interruption_long
+// label:  a hr that is interrupted, but the first part remains valid because it is long enough
+// input:  "----x--"
+// output: [TagOpenOpen(wiki_markup="----"), Text(text="hr"), TagCloseSelfclose(), Text(text="x--")]
+//
+// ---
+//
+// name:   nowiki_cancel
+// label:  a nowiki tag before a list causes it to not be parsed
+// input:  "<nowiki />* Unordered list"
+// output: [TagOpenOpen(), Text(text="nowiki"), TagCloseSelfclose(padding=" "), Text(text="* Unordered list")]

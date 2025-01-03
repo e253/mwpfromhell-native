@@ -139,7 +139,7 @@ Tokenizer_parse_template(Tokenizer *self, int has_content)
         return -1;
     }
     Token close;
-    close.type = TemplateOpen;
+    close.type = TemplateClose;
     close.ctx.data = NULL;
     if (Tokenizer_emit(self, &close)) {
         return -1;
