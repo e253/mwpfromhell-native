@@ -23,25 +23,26 @@ SOFTWARE.
 #pragma once
 
 #include "common.h"
+#include "memoryarena.h"
 
 /* Functions */
 
-int Tokenizer_push(Tokenizer*, uint64_t);
-int Tokenizer_push_textbuffer(Tokenizer*);
-void Tokenizer_delete_top_of_stack(Tokenizer*);
-TokenList* Tokenizer_pop(Tokenizer*);
-TokenList* Tokenizer_pop_keeping_context(Tokenizer*);
+int Tokenizer_push(memory_arena_t*, Tokenizer*, uint64_t);
+int Tokenizer_push_textbuffer(memory_arena_t*, Tokenizer*);
+void Tokenizer_delete_top_of_stack(memory_arena_t*, Tokenizer*);
+TokenList* Tokenizer_pop(memory_arena_t*, Tokenizer*);
+TokenList* Tokenizer_pop_keeping_context(memory_arena_t*, Tokenizer*);
 void Tokenizer_memoize_bad_route(Tokenizer*);
-void* Tokenizer_fail_route(Tokenizer*);
+void* Tokenizer_fail_route(memory_arena_t* a, Tokenizer*);
 int Tokenizer_check_route(Tokenizer*, uint64_t);
 void Tokenizer_free_bad_route_tree(Tokenizer*);
 
-int Tokenizer_emit_token(Tokenizer*, Token*, int);
-int Tokenizer_emit_char(Tokenizer*, char);
-int Tokenizer_emit_text(Tokenizer*, const char*);
-int Tokenizer_emit_textbuffer(Tokenizer*, Textbuffer*);
-int Tokenizer_emit_all(Tokenizer*, TokenList*);
-int Tokenizer_emit_text_then_stack(Tokenizer*, const char*);
+int Tokenizer_emit_token(memory_arena_t*, Tokenizer*, Token*, int);
+int Tokenizer_emit_char(memory_arena_t*, Tokenizer*, char);
+int Tokenizer_emit_text(memory_arena_t*, Tokenizer*, const char*);
+int Tokenizer_emit_textbuffer(memory_arena_t*, Tokenizer*, Textbuffer*);
+int Tokenizer_emit_all(memory_arena_t*, Tokenizer*, TokenList*);
+int Tokenizer_emit_text_then_stack(memory_arena_t*, Tokenizer*, const char*);
 
 char Tokenizer_read(Tokenizer*, size_t);
 char Tokenizer_read_backwards(Tokenizer*, size_t);
@@ -53,8 +54,8 @@ char Tokenizer_read_backwards(Tokenizer*, size_t);
 #define Tokenizer_IS_CURRENT_STACK(self, id) \
     (self->topstack->ident.head == (id).head && self->topstack->ident.context == (id).context)
 
-#define Tokenizer_emit(self, token) Tokenizer_emit_token(self, token, 0)
-#define Tokenizer_emit_first(self, token) Tokenizer_emit_token(self, token, 1)
+#define Tokenizer_emit(a, self, token) Tokenizer_emit_token(a, self, token, 0)
+#define Tokenizer_emit_first(a, self, token) Tokenizer_emit_token(a, self, token, 1)
 #define Tokenizer_emit_kwargs(self, token, kwargs) \
     Tokenizer_emit_token_kwargs(self, token, kwargs, 0)
 #define Tokenizer_emit_first_kwargs(self, token, kwargs) \

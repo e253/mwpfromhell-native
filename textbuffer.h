@@ -23,14 +23,15 @@ SOFTWARE.
 #pragma once
 
 #include "common.h"
+#include "memoryarena.h"
 
 /* Functions */
 
-Textbuffer* Textbuffer_new(TokenizerInput*);
-void Textbuffer_dealloc(Textbuffer*);
+Textbuffer* Textbuffer_new(memory_arena_t*, TokenizerInput*);
+void Textbuffer_dealloc(memory_arena_t*, Textbuffer*);
 int Textbuffer_reset(Textbuffer*);
-int Textbuffer_write(Textbuffer*, char);
+int Textbuffer_write(memory_arena_t*, Textbuffer*, char);
 char Textbuffer_read(Textbuffer*, size_t);
-char* Textbuffer_export(Textbuffer*);
-int Textbuffer_concat(Textbuffer*, Textbuffer*);
+char* Textbuffer_export(memory_arena_t*, Textbuffer*);
+int Textbuffer_concat(memory_arena_t*, Textbuffer*, Textbuffer*);
 void Textbuffer_reverse(Textbuffer*);

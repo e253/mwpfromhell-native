@@ -8,6 +8,8 @@ const c = @cImport({
     @cInclude("tokens.h");
 });
 
+const Arena = c.memory_arena_t;
+
 fn printTokens(tokenlist: c.TokenList) void {
     var i: u32 = 0;
     while (i < tokenlist.len) : (i += 1) {
@@ -37,9 +39,20 @@ fn tokenize(txt: []const u8) c.TokenList {
     tokenizer.text.data = txt.ptr;
     tokenizer.text.length = txt.len;
 
-    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+    var arena: c.memory_arena_t = std.mem.zeroes(c.memory_arena_t);
+    std.debug.assert(c.arena_init(&arena) == 0);
+
+    const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&arena, &tokenizer, 0, 1));
 
     return tokenlist.*;
+}
+
+fn tokenize_arena(a: *Arena, txt: []const u8) c.TokenList {
+    var tokenizer = std.mem.zeroes(c.Tokenizer);
+    tokenizer.text.data = txt.ptr;
+    tokenizer.text.length = txt.len;
+
+    return @as(*c.TokenList, @ptrCast(c.Tokenizer_parse(a, &tokenizer, 0, 1))).*;
 }
 
 fn cText(txt: [*:0]const u8) [*c]u8 {
@@ -64,7 +77,11 @@ fn expectTokensEql(expected: []const c.Token, actual: c.TokenList) !void {
 test "sanity check for basic text parsing, no gimmicks" {
     const txt = "foobar";
 
-    const tokenlist = tokenize(txt);
+    var a: Arena = undefined;
+    try expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const tokenlist = tokenize_arena(&a, txt);
 
     try expect(tokenlist.len == 1);
     try expectTextTokEql("foobar", tokenlist.tokens[0]);
@@ -73,10 +90,14 @@ test "sanity check for basic text parsing, no gimmicks" {
 test "slightly more complex text parsing, with newlines" {
     const txt = "This is a line of text.\nThis is another line of text.\nThis is another.";
 
-    const tokenlist = tokenize(txt);
+    var a: Arena = undefined;
+    try expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const tokenlist = tokenize_arena(&a, txt);
 
     try expect(tokenlist.len == 1);
-    try expectTextTokEql("This is a line of text.\nThis is another line of text.\nThis is another.", tokenlist.tokens[0]);
+    try expectTextTokEql(txt, tokenlist.tokens[0]);
 }
 
 test "ensure unicode data is handled properly" {
@@ -101,7 +122,11 @@ test "additional unicode check for non-BMP codepoints" {
 test "a lot of text, requiring proper storage in the C tokenizer" {
     const txt = "ZWfsZYcZyhGbkDYJiguJuuhsNyHGFkFhnjkbLJyXIygTHqcXdhsDkEOTSIKYlBiohLIkiXxvyebUyCGvvBcYqFdtcftGmaAanKXEIyYSEKlTfEEbdGhdePVwVImOyKiHSzAEuGyEVRIKPZaNjQsYqpqARIQfvAklFtQyTJVGlLwjJIxYkiqmHBmdOvTyNqJRbMvouoqXRyOhYDwowtkcZGSOcyzVxibQdnzhDYbrgbatUrlOMRvFSzmLWHRihtXnddwYadPgFWUOxAzAgddJVDXHerawdkrRuWaEXfuwQSkQUmLEJUmrgXDVlXCpciaisfuOUjBldElygamkkXbewzLucKRnAEBimIIotXeslRRhnqQjrypnLQvvdCsKFWPVTZaHvzJMFEahDHWcCbyXgxFvknWjhVfiLSDuFhGoFxqSvhjnnRZLmCMhmWeOgSoanDEInKTWHnbpKyUlabLppITDFFxyWKAnUYJQIcmYnrvMmzmtYvsbCYbebgAhMFVVFAKUSvlkLFYluDpbpBaNFWyfXTaOdSBrfiHDTWGBTUCXMqVvRCIMrEjWpQaGsABkioGnveQWqBTDdRQlxQiUipwfyqAocMddXqdvTHhEwjEzMkOSWVPjJvDtClhYwpvRztPmRKCSpGIpXQqrYtTLmShFdpKtOxGtGOZYIdyUGPjdmyvhJTQMtgYJWUUZnecRjBfQXsyWQWikyONySLzLEqRFqcJYdRNFcGwWZtfZasfFWcvdsHRXoqKlKYihRAOJdrPBDdxksXFwKceQVncmFXfUfBsNgjKzoObVExSnRnjegeEhqxXzPmFcuiasViAFeaXrAxXhSfSyCILkKYpjxNeKynUmdcGAbwRwRnlAFbOSCafmzXddiNpLCFTHBELvArdXFpKUGpSHRekhrMedMRNkQzmSyFKjVwiWwCvbNWjgxJRzYeRxHiCCRMXktmKBxbxGZvOpvZIJOwvGIxcBLzsMFlDqAMLtScdsJtrbIUAvKfcdChXGnBzIxGxXMgxJhayrziaCswdpjJJJhkaYnGhHXqZwOzHFdhhUIEtfjERdLaSPRTDDMHpQtonNaIgXUYhjdbnnKppfMBxgNSOOXJAPtFjfAKnrRDrumZBpNhxMstqjTGBViRkDqbTdXYUirsedifGYzZpQkvdNhtFTOPgsYXYCwZHLcSLSfwfpQKtWfZuRUUryHJsbVsAOQcIJdSKKlOvCeEjUQNRPHKXuBJUjPuaAJJxcDMqyaufqfVwUmHLdjeYZzSiiGLHOTCInpVAalbXXTMLugLiwFiyPSuSFiyJUKVrWjbZAHaJtZnQmnvorRrxdPKThqXzNgTjszQiCoMczRnwGYJMERUWGXFyrSbAqsHmLwLlnJOJoXNsjVehQjVOpQOQJAZWwFZBlgyVIplzLTlFwumPgBLYrUIAJAcmvHPGfHfWQguCjfTYzxYfbohaLFAPwxFRrNuCdCzLlEbuhyYjCmuDBTJDMCdLpNRVqEALjnPSaBPsKWRCKNGwEMFpiEWbYZRwaMopjoUuBUvMpvyLfsPKDrfQLiFOQIWPtLIMoijUEUYfhykHrSKbTtrvjwIzHdWZDVwLIpNkloCqpzIsErxxKAFuFEjikWNYChqYqVslXMtoSWzNhbMuxYbzLfJIcPGoUeGPkGyPQNhDyrjgdKekzftFrRPTuyLYqCArkDcWHTrjPQHfoThBNnTQyMwLEWxEnBXLtzJmFVLGEPrdbEwlXpgYfnVnWoNXgPQKKyiXifpvrmJATzQOzYwFhliiYxlbnsEPKbHYUfJLrwYPfSUwTIHiEvBFMrEtVmqJobfcwsiiEudTIiAnrtuywgKLOiMYbEIOAOJdOXqroPjWnQQcTNxFvkIEIsuHLyhSqSphuSmlvknzydQEnebOreeZwOouXYKlObAkaWHhOdTFLoMCHOWrVKeXjcniaxtgCziKEqWOZUWHJQpcDJzYnnduDZrmxgjZroBRwoPBUTJMYipsgJwbTSlvMyXXdAmiEWGMiQxhGvHGPLOKeTxNaLnFVbWpiYIVyqN";
 
-    const tokenlist = tokenize(txt);
+    var a: Arena = undefined;
+    try expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const tokenlist = tokenize_arena(&a, txt);
 
     try expect(tokenlist.len == 1);
     try expectTextTokEql(txt, tokenlist.tokens[0]);
@@ -414,7 +439,14 @@ test "basic level 1-6 headings" {
         tokenizer.text.data = @constCast(txt.ptr);
         tokenizer.text.length = txt.len;
 
-        const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
+        var arena: c.memory_arena_t = std.mem.zeroes(c.memory_arena_t);
+        std.debug.assert(c.arena_init(&arena) == 0);
+        defer {
+            c.arena_clear(&arena);
+            std.debug.assert(arena.len == 0 and arena.capacity == 0);
+        }
+
+        const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&arena, &tokenizer, 0, 1));
 
         try expect(tokenlist.len == 3);
         try expect(tokenlist.tokens[0].type == c.HeadingStart);

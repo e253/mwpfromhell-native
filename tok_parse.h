@@ -23,6 +23,8 @@ SOFTWARE.
 #pragma once
 
 #include "common.h"
+#include "memoryarena.h"
+#include "tok_support.h"
 
 static const char MARKERS[] = {
     '{',
@@ -50,4 +52,4 @@ static const char MARKERS[] = {
 
 /* Functions */
 
-TokenList* Tokenizer_parse(Tokenizer*, uint64_t, int);
+TokenList* Tokenizer_parse(memory_arena_t*, Tokenizer*, uint64_t, int);

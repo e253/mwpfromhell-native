@@ -22,21 +22,22 @@ SOFTWARE.
 
 #include "tag_data.h"
 #include "contexts.h"
+#include "memoryarena.h"
 
 /*
     Initialize a new TagData object.
 */
 TagData *
-TagData_new(TokenizerInput *text)
+TagData_new(memory_arena_t *a, TokenizerInput *text)
 {
 #define ALLOC_BUFFER(name)                                                             \
-    name = Textbuffer_new(text);                                                       \
+    name = Textbuffer_new(a, text);                                                    \
     if (!name) {                                                                       \
-        TagData_dealloc(self);                                                         \
+        TagData_dealloc(a, self);                                                      \
         return NULL;                                                                   \
     }
 
-    TagData *self = malloc(sizeof(TagData));
+    TagData *self = arena_alloc(a, sizeof(TagData));
     if (!self) {
         PyErr_NoMemory();
         return NULL;
@@ -56,16 +57,16 @@ TagData_new(TokenizerInput *text)
     Deallocate the given TagData object.
 */
 void
-TagData_dealloc(TagData *self)
+TagData_dealloc(memory_arena_t *a, TagData *self)
 {
     if (self->pad_first) {
-        Textbuffer_dealloc(self->pad_first);
+        Textbuffer_dealloc(a, self->pad_first);
     }
     if (self->pad_before_eq) {
-        Textbuffer_dealloc(self->pad_before_eq);
+        Textbuffer_dealloc(a, self->pad_before_eq);
     }
     if (self->pad_after_eq) {
-        Textbuffer_dealloc(self->pad_after_eq);
+        Textbuffer_dealloc(a, self->pad_after_eq);
     }
     free(self);
 }
@@ -78,7 +79,7 @@ TagData_reset_buffers(TagData *self)
 {
     if (Textbuffer_reset(self->pad_first) || Textbuffer_reset(self->pad_before_eq) ||
         Textbuffer_reset(self->pad_after_eq)) {
-        return -1;
+        return 1;
     }
     return 0;
 }

@@ -23,6 +23,7 @@ SOFTWARE.
 #pragma once
 
 #include "common.h"
+#include "memoryarena.h"
 #include "textbuffer.h"
 
 /* Structs */
@@ -32,12 +33,12 @@ typedef struct {
     Textbuffer* pad_first;
     Textbuffer* pad_before_eq;
     Textbuffer* pad_after_eq;
-    Py_UCS4 quoter;
-    Py_ssize_t reset;
+    char quoter;
+    size_t reset;
 } TagData;
 
 /* Functions */
 
-TagData* TagData_new(TokenizerInput*);
-void TagData_dealloc(TagData*);
+TagData* TagData_new(memory_arena_t*, TokenizerInput*);
+void TagData_dealloc(memory_arena_t*, TagData*);
 int TagData_reset_buffers(TagData*);

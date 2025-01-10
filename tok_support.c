@@ -22,6 +22,7 @@ SOFTWARE.
 
 #include "tok_support.h"
 #include "common.h"
+#include "memoryarena.h"
 #include "textbuffer.h"
 #include "tokenlist.h"
 
@@ -29,17 +30,17 @@ SOFTWARE.
     Add a new token stack, context, and textbuffer to the list.
 */
 int
-Tokenizer_push(Tokenizer *self, uint64_t context)
+Tokenizer_push(memory_arena_t *a, Tokenizer *self, uint64_t context)
 {
     assert(self);
 
-    Stack *top = malloc(sizeof(Stack));
+    Stack *top = arena_alloc(a, sizeof(Stack));
     assert(top);
 
     top->tokenlist = TokenList_new(0);
     assert(top->tokenlist);
     top->context = context;
-    top->textbuffer = Textbuffer_new(&self->text);
+    top->textbuffer = Textbuffer_new(a, &self->text);
     assert(top->textbuffer);
 
     top->ident.head = self->head;
@@ -54,7 +55,7 @@ Tokenizer_push(Tokenizer *self, uint64_t context)
     Push the textbuffer onto the stack as a Text node and clear it.
 */
 int
-Tokenizer_push_textbuffer(Tokenizer *self)
+Tokenizer_push_textbuffer(memory_arena_t *a, Tokenizer *self)
 {
     assert(self);
     if (!self->topstack || !self->topstack->textbuffer)
@@ -67,7 +68,7 @@ Tokenizer_push_textbuffer(Tokenizer *self)
 
     Token t;
     t.type = Text;
-    t.ctx.data = Textbuffer_export(buffer);
+    t.ctx.data = Textbuffer_export(a, buffer);
     assert(self->topstack->tokenlist);
     TokenList_append(self->topstack->tokenlist, &t);
 
@@ -80,15 +81,15 @@ Tokenizer_push_textbuffer(Tokenizer *self)
     Pop and deallocate the top token stack/context/textbuffer.
 */
 void
-Tokenizer_delete_top_of_stack(Tokenizer *self)
+Tokenizer_delete_top_of_stack(memory_arena_t *a, Tokenizer *self)
 {
     Stack *top = self->topstack;
 
     // TODO: Make sure everything is de-allocated here.
 
-    Textbuffer_dealloc(top->textbuffer);
+    Textbuffer_dealloc(a, top->textbuffer);
     self->topstack = top->next;
-    free(top);
+    arena_free(a, top);
     self->depth--;
 }
 
@@ -96,18 +97,19 @@ Tokenizer_delete_top_of_stack(Tokenizer *self)
     Pop the current stack/context/textbuffer, returing the stack.
 */
 TokenList *
-Tokenizer_pop(Tokenizer *self)
+Tokenizer_pop(memory_arena_t *a, Tokenizer *self)
 {
     assert(self);
 
-    if (Tokenizer_push_textbuffer(self))
+    if (Tokenizer_push_textbuffer(a, self)) {
         return NULL;
+    }
 
     assert(self->topstack);
     assert(self->topstack->tokenlist);
 
     TokenList *tl = self->topstack->tokenlist;
-    Tokenizer_delete_top_of_stack(self);
+    Tokenizer_delete_top_of_stack(a, self);
     return tl;
 }
 
@@ -116,16 +118,16 @@ Tokenizer_pop(Tokenizer *self)
     replace the underlying stack's context with the current stack's.
 */
 TokenList *
-Tokenizer_pop_keeping_context(Tokenizer *self)
+Tokenizer_pop_keeping_context(memory_arena_t *a, Tokenizer *self)
 {
     uint64_t context;
 
-    if (Tokenizer_push_textbuffer(self)) {
+    if (Tokenizer_push_textbuffer(a, self)) {
         return NULL;
     }
     TokenList *tl = self->topstack->tokenlist;
     context = self->topstack->context;
-    Tokenizer_delete_top_of_stack(self);
+    Tokenizer_delete_top_of_stack(a, self);
     self->topstack->context = context;
     return tl;
 }
@@ -173,14 +175,12 @@ Tokenizer_memoize_bad_route(Tokenizer *self)
     stopped early.
 */
 void *
-Tokenizer_fail_route(Tokenizer *self)
+Tokenizer_fail_route(memory_arena_t *a, Tokenizer *self)
 {
     uint64_t context = self->topstack->context;
-    PyObject *stack;
 
     Tokenizer_memoize_bad_route(self);
-    stack = Tokenizer_pop(self);
-    Py_XDECREF(stack);
+    TokenList *stack = Tokenizer_pop(a, self);
     FAIL_ROUTE(context);
     return NULL;
 }
@@ -233,12 +233,12 @@ Tokenizer_free_bad_route_tree(Tokenizer *self)
     Write a token to the current token stack.
 */
 int
-Tokenizer_emit_token(Tokenizer *self, Token *token, int first)
+Tokenizer_emit_token(memory_arena_t *a, Tokenizer *self, Token *token, int first)
 {
     assert(self);
     assert(token);
 
-    if (Tokenizer_push_textbuffer(self)) {
+    if (Tokenizer_push_textbuffer(a, self)) {
         return 1;
     }
 
@@ -288,21 +288,21 @@ Tokenizer_emit_token_kwargs(Tokenizer *self, Token *token, PyObject *kwargs, int
     Write a Unicode codepoint to the current textbuffer.
 */
 int
-Tokenizer_emit_char(Tokenizer *self, char code)
+Tokenizer_emit_char(memory_arena_t *a, Tokenizer *self, char code)
 {
-    return Textbuffer_write(self->topstack->textbuffer, code);
+    return Textbuffer_write(a, self->topstack->textbuffer, code);
 }
 
 /*
     Write a string of text to the current textbuffer.
 */
 int
-Tokenizer_emit_text(Tokenizer *self, const char *text)
+Tokenizer_emit_text(memory_arena_t *a, Tokenizer *self, const char *text)
 {
     int i = 0;
 
     while (text[i]) {
-        if (Tokenizer_emit_char(self, text[i])) {
+        if (Tokenizer_emit_char(a, self, text[i])) {
             return -1;
         }
         i++;
@@ -315,10 +315,10 @@ Tokenizer_emit_text(Tokenizer *self, const char *text)
     deallocating it in the process.
 */
 int
-Tokenizer_emit_textbuffer(Tokenizer *self, Textbuffer *buffer)
+Tokenizer_emit_textbuffer(memory_arena_t *a, Tokenizer *self, Textbuffer *buffer)
 {
-    int retval = Textbuffer_concat(self->topstack->textbuffer, buffer);
-    Textbuffer_dealloc(buffer);
+    int retval = Textbuffer_concat(a, self->topstack->textbuffer, buffer);
+    Textbuffer_dealloc(a, buffer);
     return retval;
 }
 
@@ -326,7 +326,7 @@ Tokenizer_emit_textbuffer(Tokenizer *self, Textbuffer *buffer)
     Write a series of tokens to the current stack at once.
 */
 int
-Tokenizer_emit_all(Tokenizer *self, TokenList *tokenlist)
+Tokenizer_emit_all(memory_arena_t *a, Tokenizer *self, TokenList *tokenlist)
 {
     if (self == NULL || tokenlist == NULL)
         return 1;
@@ -335,11 +335,11 @@ Tokenizer_emit_all(Tokenizer *self, TokenList *tokenlist)
         // We want to merge side-by-side `Text` tokens
         Token existingText;
         assert(TokenList_pop_first(tokenlist, &existingText) == Pop_Good);
-        if (Tokenizer_emit_text(self, existingText.ctx.data))
+        if (Tokenizer_emit_text(a, self, existingText.ctx.data))
             return 1;
     }
 
-    Tokenizer_push_textbuffer(self);
+    Tokenizer_push_textbuffer(a, self);
 
     for (int i = 0; i < tokenlist->len; i++)
         TokenList_append(self->topstack->tokenlist, &tokenlist->tokens[i]);
@@ -352,15 +352,15 @@ Tokenizer_emit_all(Tokenizer *self, TokenList *tokenlist)
     NULL-terminated array of chars.
 */
 int
-Tokenizer_emit_text_then_stack(Tokenizer *self, const char *text)
+Tokenizer_emit_text_then_stack(memory_arena_t *a, Tokenizer *self, const char *text)
 {
-    TokenList *tl = Tokenizer_pop(self);
+    TokenList *tl = Tokenizer_pop(a, self);
 
-    if (Tokenizer_emit_text(self, text))
+    if (Tokenizer_emit_text(a, self, text))
         return -1;
 
     if (tl && tl->len > 0) {
-        if (Tokenizer_emit_all(self, tl))
+        if (Tokenizer_emit_all(a, self, tl))
             return -1;
     }
 

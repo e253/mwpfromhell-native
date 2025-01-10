@@ -21,19 +21,20 @@ SOFTWARE.
 */
 
 #include "textbuffer.h"
+#include "memoryarena.h"
+#include <stdio.h>
 
 #define INITIAL_CAPACITY 32
 #define RESIZE_FACTOR    2
-#define CONCAT_EXTRA     32
 
 /*
     Create a new textbuffer object.
 */
 Textbuffer *
-Textbuffer_new(TokenizerInput *text)
+Textbuffer_new(memory_arena_t *a, TokenizerInput *text)
 {
-    Textbuffer *self = malloc(sizeof(Textbuffer));
-    self->data = malloc(INITIAL_CAPACITY);
+    Textbuffer *self = arena_alloc(a, sizeof(Textbuffer));
+    self->data = arena_alloc(a, INITIAL_CAPACITY);
     self->length = 0;
     self->capacity = INITIAL_CAPACITY;
 
@@ -44,11 +45,10 @@ Textbuffer_new(TokenizerInput *text)
     Deallocate the given textbuffer.
 */
 void
-Textbuffer_dealloc(Textbuffer *self)
+Textbuffer_dealloc(memory_arena_t *a, Textbuffer *self)
 {
-    free(self->data);
-    free(self);
-    self = NULL;
+    arena_free(a, self->data);
+    arena_free(a, self);
 }
 
 /*
@@ -65,16 +65,17 @@ Textbuffer_reset(Textbuffer *self)
     Write a Unicode codepoint to the given textbuffer.
 */
 int
-Textbuffer_write(Textbuffer *self, char code)
+Textbuffer_write(memory_arena_t *a, Textbuffer *self, char c)
 {
     if (self->length >= self->capacity) {
-        self->data = reallocarray(self->data, self->capacity*RESIZE_FACTOR, 1);
+        self->data =
+            arena_reallocarray(a, self->data, self->capacity * RESIZE_FACTOR, 1);
         if (self->data == NULL)
-            return -1;
-        self->capacity = self->capacity*RESIZE_FACTOR;
+            return 1;
+        self->capacity = self->capacity * RESIZE_FACTOR;
     }
 
-    self->data[self->length] = code;
+    self->data[self->length] = c;
     self->length++;
 
     return 0;
@@ -95,15 +96,16 @@ Textbuffer_read(Textbuffer *self, size_t index)
     Concatenate the 'other' textbuffer onto the end of the given textbuffer.
 */
 int
-Textbuffer_concat(Textbuffer *self, Textbuffer *other)
+Textbuffer_concat(memory_arena_t *a, Textbuffer *self, Textbuffer *other)
 {
     size_t newlen = self->length + other->length;
 
     if (newlen > self->capacity) {
-        self->data = reallocarray(self->data, self->capacity*RESIZE_FACTOR, 1);
+        self->data =
+            arena_reallocarray(a, self->data, self->capacity * RESIZE_FACTOR, 1);
         if (self->data == NULL)
             return -1;
-        self->capacity = self->capacity*RESIZE_FACTOR;
+        self->capacity = self->capacity * RESIZE_FACTOR;
     }
 
     memcpy(self->data + self->length, other->data, other->length);
@@ -115,8 +117,10 @@ Textbuffer_concat(Textbuffer *self, Textbuffer *other)
 /*
     Null terminated char buffer owned by the caller
 */
-char * Textbuffer_export(Textbuffer *self) {
-    char* data = malloc(self->length + 1);
+char *
+Textbuffer_export(memory_arena_t *a, Textbuffer *self)
+{
+    char *data = arena_alloc(a, self->length + 1);
     memcpy(data, self->data, self->length);
     data[self->length] = 0;
     return data;
@@ -129,13 +133,14 @@ void
 Textbuffer_reverse(Textbuffer *self)
 {
     // TODO: IMPLEMENT IF NECCESSARY
-    //Py_ssize_t i, end = self->length - 1;
-    //Py_UCS4 tmp;
+    // Py_ssize_t i, end = self->length - 1;
+    // Py_UCS4 tmp;
 
-    //for (i = 0; i < self->length / 2; i++) {
-    //    tmp = PyUnicode_READ(self->kind, self->data, i);
-    //    PyUnicode_WRITE(
-    //        self->kind, self->data, i, PyUnicode_READ(self->kind, self->data, end - i));
-    //    PyUnicode_WRITE(self->kind, self->data, end - i, tmp);
-    //}
+    // for (i = 0; i < self->length / 2; i++) {
+    //     tmp = PyUnicode_READ(self->kind, self->data, i);
+    //     PyUnicode_WRITE(
+    //         self->kind, self->data, i, PyUnicode_READ(self->kind, self->data, end -
+    //         i));
+    //     PyUnicode_WRITE(self->kind, self->data, end - i, tmp);
+    // }
 }
