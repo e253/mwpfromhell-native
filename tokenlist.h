@@ -1,12 +1,13 @@
 #pragma once
 
 #include "common.h"
+#include "memoryarena.h"
 
-TokenList* TokenList_new(size_t capacity);
+TokenList* TokenList_new(memory_arena_t*, size_t capacity);
 void TokenList_deinit(TokenList*);
-void TokenList_append(TokenList*, Token*);
+void TokenList_append(memory_arena_t*, TokenList*, Token*);
 /// Expensive. Avoid.
-void TokenList_prepend(TokenList*, Token*);
+void TokenList_prepend(memory_arena_t*, TokenList*, Token*);
 
 typedef enum {
     Pop_Good = 0,

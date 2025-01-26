@@ -1083,7 +1083,7 @@ Tokenizer_really_parse_entity(memory_arena_t *a, Tokenizer *self)
     } else {
         valid = ALPHANUM;
     }
-    text = calloc(MAX_ENTITY_SIZE, sizeof(char));
+    text = arena_calloc(a, MAX_ENTITY_SIZE, sizeof(char));
     if (!text) {
         return 1;
     }
@@ -1131,7 +1131,7 @@ Tokenizer_really_parse_entity(memory_arena_t *a, Tokenizer *self)
     // For now, char entities are assumed to be valid.
 
     if (zeroes) {
-        buffer = calloc(strlen(text) + zeroes + 1, sizeof(char));
+        buffer = arena_calloc(a, strlen(text) + zeroes + 1, sizeof(char));
         if (!buffer) {
             free(text);
             return -1;
@@ -1399,7 +1399,7 @@ Tokenizer_handle_tag_data(memory_arena_t *a, Tokenizer *self, TagData *data, cha
     } else if (data->context & TAG_NOTE_SPACE) {
         if (data->context & TAG_QUOTED) {
             data->context = TAG_ATTR_VALUE;
-            Tokenizer_memoize_bad_route(self);
+            Tokenizer_memoize_bad_route(a, self);
             trash = Tokenizer_pop(a, self);
             Py_XDECREF(trash);
             self->head = data->reset - 1; // Will be auto-incremented
@@ -2569,7 +2569,7 @@ Tokenizer_parse_table(memory_arena_t *a, Tokenizer *self)
         Py_DECREF(padding);
         Py_DECREF(style);
         while (!Tokenizer_IS_CURRENT_STACK(self, restore_point)) {
-            Tokenizer_memoize_bad_route(self);
+            Tokenizer_memoize_bad_route(a, self);
             trash = Tokenizer_pop(a, self);
             Py_XDECREF(trash);
         }

@@ -1039,30 +1039,105 @@ test "multiple adjacent uls" {
 // label:  multiple adjacent uls, with differing depths
 // input:  "*a\n**b\n***c\n********d\n**e\nf\n***g"
 // output: [TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="a\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="b\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="c\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="d\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="e\nf\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="g")]
-//
-// ---
-//
+test "multiple adjacent uls, with differing depths" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "*a\n**b\n***c\n********d\n**e\nf\n***g");
+
+    const expected = [_]c.Token{
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("a\n") } },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("b\n") } },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("c\n") } },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("d\n") } },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("e\nf\n") } },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("g") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   ul_space_before
 // label:  uls with space before them
 // input:  "foo    *bar\n *baz\n*buzz"
 // output: [Text(text="foo    *bar\n *baz\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="buzz")]
-//
-// ---
-//
+test "uls with space before them" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "foo    *bar\n *baz\n*buzz");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo    *bar\n *baz\n") } },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("buzz") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   ul_interruption
 // label:  high-depth ul with something blocking it
 // input:  "**f*oobar"
 // output: [TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="f*oobar")]
-//
-// ---
-//
+test "high-depth ul with something blocking it" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "**f*oobar");
+
+    const expected = [_]c.Token{
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("f*oobar") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   complex_ol
 // label:  ol with a lot in it
 // input:  "# this is a&nbsp;test of an [[Ordered list|ol]] with {{plenty|of|stuff}}"
 // output: [TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text=" this is a"), HTMLEntityStart(), Text(text="nbsp"), HTMLEntityEnd(), Text(text="test of an "), WikilinkOpen(), Text(text="Ordered list"), WikilinkSeparator(), Text(text="ol"), WikilinkClose(), Text(text=" with "), TemplateOpen(), Text(text="plenty"), TemplateParamSeparator(), Text(text="of"), TemplateParamSeparator(), Text(text="stuff"), TemplateClose()]
-//
-// ---
-//
+test "ol with a lot in it" {
+    // var a: Arena = std.mem.zeroes(Arena);
+    // try std.testing.expect(c.arena_init(&a) == 0);
+    // defer c.arena_clear(&a);
+
+    // const actual = tokenize_arena(&a, "# this is a&nbsp;test of an [[Ordered list|ol]] with {{plenty|of|stuff}}");
+
+    // const expected = [_]c.Token{
+    //     .{ .type = c.UnorderedListItem },
+    //     .{ .type = c.UnorderedListItem },
+    //     .{ .type = c.Text, .ctx = .{ .data = cText("f*oobar") } },
+    // };
+
+    // try expectTokensEql(&expected, actual);
+    return error.SkipZigTest;
+}
+
 // name:   ol_multiline_template
 // label:  ol with a template that spans moltiple lines
 // input:  "# this has a template with a {{line|\nbreak}}\nthis is not part of the list"

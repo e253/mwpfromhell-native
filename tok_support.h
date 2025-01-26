@@ -32,7 +32,7 @@ int Tokenizer_push_textbuffer(memory_arena_t*, Tokenizer*);
 void Tokenizer_delete_top_of_stack(memory_arena_t*, Tokenizer*);
 TokenList* Tokenizer_pop(memory_arena_t*, Tokenizer*);
 TokenList* Tokenizer_pop_keeping_context(memory_arena_t*, Tokenizer*);
-void Tokenizer_memoize_bad_route(Tokenizer*);
+void Tokenizer_memoize_bad_route(memory_arena_t*, Tokenizer*);
 void* Tokenizer_fail_route(memory_arena_t* a, Tokenizer*);
 int Tokenizer_check_route(Tokenizer*, uint64_t);
 void Tokenizer_free_bad_route_tree(Tokenizer*);

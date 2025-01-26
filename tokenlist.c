@@ -1,14 +1,15 @@
 #include "tokenlist.h"
 #include "common.h"
+#include "memoryarena.h"
 
 #define INITIAL_CAPACITY 32
-#define RESIZE_FACTOR 2
+#define RESIZE_FACTOR    2
 
-TokenList*
-TokenList_new(size_t capacity)
+TokenList *
+TokenList_new(memory_arena_t *a, size_t capacity)
 {
-    TokenList* tl = malloc(sizeof(TokenList));
-    tl->tokens = malloc(INITIAL_CAPACITY * sizeof(Token));
+    TokenList *tl = arena_alloc(a, sizeof(TokenList));
+    tl->tokens = arena_alloc(a, INITIAL_CAPACITY * sizeof(Token));
     tl->len = 0;
     if (capacity != 0) {
         tl->capacity = capacity;
@@ -20,28 +21,30 @@ TokenList_new(size_t capacity)
 }
 
 static inline void
-TokenList_resize(TokenList* tl)
+TokenList_resize(memory_arena_t *a, TokenList *tl)
 {
     tl->capacity = tl->capacity * RESIZE_FACTOR;
-    tl->tokens = reallocarray(tl->tokens, tl->capacity, sizeof(Token));
+    tl->tokens = arena_reallocarray(a, tl->tokens, tl->capacity, sizeof(Token));
 }
 
-void TokenList_append(TokenList* tl, Token* t)
+void
+TokenList_append(memory_arena_t *a, TokenList *tl, Token *t)
 {
     if (tl->len == tl->capacity)
-        TokenList_resize(tl);
+        TokenList_resize(a, tl);
 
     tl->tokens[tl->len] = *t;
     tl->len++;
 }
 
-void TokenList_prepend(TokenList* tl, Token* t)
+void
+TokenList_prepend(memory_arena_t *a, TokenList *tl, Token *t)
 {
     if (tl->len == 0)
-        return TokenList_append(tl, t);
+        return TokenList_append(a, tl, t);
 
     if (tl->len == tl->capacity)
-        TokenList_resize(tl);
+        TokenList_resize(a, tl);
 
     for (int i = tl->len; i > 0; i--)
         tl->tokens[i] = tl->tokens[i - 1];
@@ -53,7 +56,8 @@ void TokenList_prepend(TokenList* tl, Token* t)
     return;
 }
 
-PopResult TokenList_pop(TokenList* self, Token* t)
+PopResult
+TokenList_pop(TokenList *self, Token *t)
 {
     assert(self != NULL && t != NULL);
 
@@ -67,7 +71,8 @@ PopResult TokenList_pop(TokenList* self, Token* t)
     return Pop_Good;
 }
 
-PopResult TokenList_pop_first(TokenList* self, Token* t)
+PopResult
+TokenList_pop_first(TokenList *self, Token *t)
 {
     assert(self != NULL && t != NULL);
 

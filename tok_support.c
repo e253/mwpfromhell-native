@@ -37,7 +37,7 @@ Tokenizer_push(memory_arena_t *a, Tokenizer *self, uint64_t context)
     Stack *top = arena_alloc(a, sizeof(Stack));
     assert(top);
 
-    top->tokenlist = TokenList_new(0);
+    top->tokenlist = TokenList_new(a, 0);
     assert(top->tokenlist);
     top->context = context;
     top->textbuffer = Textbuffer_new(a, &self->text);
@@ -70,7 +70,7 @@ Tokenizer_push_textbuffer(memory_arena_t *a, Tokenizer *self)
     t.type = Text;
     t.ctx.data = Textbuffer_export(a, buffer);
     assert(self->topstack->tokenlist);
-    TokenList_append(self->topstack->tokenlist, &t);
+    TokenList_append(a, self->topstack->tokenlist, &t);
 
     Textbuffer_reset(buffer);
 
@@ -157,13 +157,13 @@ compare_nodes(const struct avl_tree_node *na, const struct avl_tree_node *nb)
     and context, and the route will be failed immediately.
 */
 void
-Tokenizer_memoize_bad_route(Tokenizer *self)
+Tokenizer_memoize_bad_route(memory_arena_t *a, Tokenizer *self)
 {
-    route_tree_node *node = malloc(sizeof(route_tree_node));
+    route_tree_node *node = arena_alloc(a, sizeof(route_tree_node));
     if (node) {
         node->id = self->topstack->ident;
         if (avl_tree_insert(&self->bad_routes, &node->node, compare_nodes)) {
-            free(node);
+            arena_free(a, node);
         }
     }
 }
@@ -179,7 +179,7 @@ Tokenizer_fail_route(memory_arena_t *a, Tokenizer *self)
 {
     uint64_t context = self->topstack->context;
 
-    Tokenizer_memoize_bad_route(self);
+    Tokenizer_memoize_bad_route(a, self);
     TokenList *stack = Tokenizer_pop(a, self);
     FAIL_ROUTE(context);
     return NULL;
@@ -246,9 +246,9 @@ Tokenizer_emit_token(memory_arena_t *a, Tokenizer *self, Token *token, int first
     assert(self->topstack->tokenlist);
 
     if (first) {
-        TokenList_prepend(self->topstack->tokenlist, token);
+        TokenList_prepend(a, self->topstack->tokenlist, token);
     } else {
-        TokenList_append(self->topstack->tokenlist, token);
+        TokenList_append(a, self->topstack->tokenlist, token);
     }
 
     return 0;
@@ -342,7 +342,7 @@ Tokenizer_emit_all(memory_arena_t *a, Tokenizer *self, TokenList *tokenlist)
     Tokenizer_push_textbuffer(a, self);
 
     for (int i = 0; i < tokenlist->len; i++)
-        TokenList_append(self->topstack->tokenlist, &tokenlist->tokens[i]);
+        TokenList_append(a, self->topstack->tokenlist, &tokenlist->tokens[i]);
 
     return 0;
 }

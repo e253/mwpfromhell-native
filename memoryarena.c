@@ -46,6 +46,30 @@ arena_alloc(memory_arena_t *a, size_t sz)
 }
 
 void *
+arena_calloc(memory_arena_t *a, size_t nmemb, size_t size)
+{
+    assert(a);
+    assert(a->capacity > 0);
+    assert(a->len <= a->capacity);
+
+    if (a->len == a->capacity) {
+        size_t new_size = a->capacity * ALLOCATIONS_RESIZE_FACTOR;
+        a->allocations = reallocarray(a->allocations, new_size, sizeof(void *));
+        if (a->allocations == NULL)
+            return NULL;
+        a->capacity = new_size;
+    }
+
+    void *new_alloc = calloc(nmemb, size);
+    if (new_alloc == NULL)
+        return NULL;
+    a->allocations[a->len] = new_alloc;
+    a->len++;
+
+    return new_alloc;
+}
+
+void *
 arena_reallocarray(memory_arena_t *a, void *ptr, size_t nmemb, size_t sz)
 {
     assert(a);
