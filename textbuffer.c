@@ -132,15 +132,11 @@ Textbuffer_export(memory_arena_t *a, Textbuffer *self)
 void
 Textbuffer_reverse(Textbuffer *self)
 {
-    // TODO: IMPLEMENT IF NECCESSARY
-    // Py_ssize_t i, end = self->length - 1;
-    // Py_UCS4 tmp;
+    size_t end = self->length - 1;
 
-    // for (i = 0; i < self->length / 2; i++) {
-    //     tmp = PyUnicode_READ(self->kind, self->data, i);
-    //     PyUnicode_WRITE(
-    //         self->kind, self->data, i, PyUnicode_READ(self->kind, self->data, end -
-    //         i));
-    //     PyUnicode_WRITE(self->kind, self->data, end - i, tmp);
-    // }
+    for (size_t i = 0; i < self->length / 2; i++) {
+        char tmp = self->data[i];
+        self->data[i] = self->data[end - i];
+        self->data[end - i] = tmp;
+    }
 }

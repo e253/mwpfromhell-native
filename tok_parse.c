@@ -128,23 +128,23 @@ Tokenizer_parse_template(memory_arena_t *a, Tokenizer *self, int has_content)
         return 0;
     }
     if (!template) {
-        return -1;
+        return 1;
     }
 
     Token open;
     open.type = TemplateOpen;
     open.ctx.data = NULL;
     if (Tokenizer_emit_first(a, self, &open)) {
-        return -1;
+        return 1;
     }
     if (Tokenizer_emit_all(a, self, template)) {
-        return -1;
+        return 1;
     }
     Token close;
     close.type = TemplateClose;
     close.ctx.data = NULL;
     if (Tokenizer_emit(a, self, &close)) {
-        return -1;
+        return 1;
     }
     return 0;
 }
@@ -163,19 +163,19 @@ Tokenizer_parse_argument(memory_arena_t *a, Tokenizer *self)
         return 0;
     }
     if (!argument) {
-        return -1;
+        return 1;
     }
 
     TOKEN(open, ArgumentOpen)
     if (Tokenizer_emit_first(a, self, &open)) {
-        return -1;
+        return 1;
     }
     if (Tokenizer_emit_all(a, self, argument)) {
-        return -1;
+        return 1;
     }
     TOKEN(close, ArgumentClose)
     if (Tokenizer_emit(a, self, &close)) {
-        return -1;
+        return 1;
     }
     return 0;
 }
@@ -196,35 +196,35 @@ Tokenizer_parse_template_or_argument(memory_arena_t *a, Tokenizer *self)
         braces++;
     }
     if (Tokenizer_push(a, self, 0)) {
-        return -1;
+        return 1;
     }
     while (braces) {
         if (braces == 1) {
             if (Tokenizer_emit_text_then_stack(a, self, "{")) {
-                return -1;
+                return 1;
             }
             return 0;
         }
         if (braces == 2) {
             if (Tokenizer_parse_template(a, self, has_content)) {
-                return -1;
+                return 1;
             }
             if (BAD_ROUTE) {
                 RESET_ROUTE();
                 if (Tokenizer_emit_text_then_stack(a, self, "{{")) {
-                    return -1;
+                    return 1;
                 }
                 return 0;
             }
             break;
         }
         if (Tokenizer_parse_argument(a, self)) {
-            return -1;
+            return 1;
         }
         if (BAD_ROUTE) {
             RESET_ROUTE();
             if (Tokenizer_parse_template(a, self, has_content)) {
-                return -1;
+                return 1;
             }
             if (BAD_ROUTE) {
                 char text[MAX_BRACES + 1];
@@ -250,11 +250,11 @@ Tokenizer_parse_template_or_argument(memory_arena_t *a, Tokenizer *self)
     }
     tokenlist = Tokenizer_pop(a, self);
     if (!tokenlist) {
-        return -1;
+        return 1;
     }
     if (Tokenizer_emit_all(a, self, tokenlist)) {
         Py_DECREF(tokenlist);
-        return -1;
+        return 1;
     }
     Py_DECREF(tokenlist);
     if (self->topstack->context & LC_FAIL_NEXT) {
@@ -283,11 +283,11 @@ Tokenizer_handle_template_param(memory_arena_t *a, Tokenizer *self)
     if (self->topstack->context & LC_TEMPLATE_PARAM_KEY) {
         stack = Tokenizer_pop(a, self);
         if (!stack) {
-            return -1;
+            return 1;
         }
         if (Tokenizer_emit_all(a, self, stack)) {
             Py_DECREF(stack);
-            return -1;
+            return 1;
         }
         Py_DECREF(stack);
     } else {
@@ -295,10 +295,10 @@ Tokenizer_handle_template_param(memory_arena_t *a, Tokenizer *self)
     }
     TOKEN(psep, TemplateParamSeparator)
     if (Tokenizer_emit(a, self, &psep)) {
-        return -1;
+        return 1;
     }
     if (Tokenizer_push(a, self, self->topstack->context)) {
-        return -1;
+        return 1;
     }
     return 0;
 }
@@ -313,18 +313,18 @@ Tokenizer_handle_template_param_value(memory_arena_t *a, Tokenizer *self)
 
     stack = Tokenizer_pop(a, self);
     if (!stack) {
-        return -1;
+        return 1;
     }
     if (Tokenizer_emit_all(a, self, stack)) {
         Py_DECREF(stack);
-        return -1;
+        return 1;
     }
     Py_DECREF(stack);
     self->topstack->context ^= LC_TEMPLATE_PARAM_KEY;
     self->topstack->context |= LC_TEMPLATE_PARAM_VALUE;
     TOKEN(tpeql, TemplateParamEquals)
     if (Tokenizer_emit(a, self, &tpeql)) {
-        return -1;
+        return 1;
     }
     return 0;
 }
@@ -375,7 +375,7 @@ Tokenizer_handle_argument_separator(memory_arena_t *a, Tokenizer *self)
 /*
     Handle the end of an argument at the head of the string.
 */
-static PyObject *
+static TokenList *
 Tokenizer_handle_argument_end(memory_arena_t *a, Tokenizer *self)
 {
     TokenList *stack = Tokenizer_pop(a, self);
@@ -423,7 +423,7 @@ Tokenizer_parse_wikilink(memory_arena_t *a, Tokenizer *self)
             return -1;
         }
         Py_DECREF(wikilink);
-        TOKEN(wikiclose, WikilinkOpen)
+        TOKEN(wikiclose, WikilinkClose)
         if (Tokenizer_emit(a, self, &wikiclose)) {
             return -1;
         }
@@ -491,160 +491,143 @@ Tokenizer_handle_wikilink_end(memory_arena_t *a, Tokenizer *self)
     Parse the URI scheme of a bracket-enclosed external link.
 */
 static int
-Tokenizer_parse_bracketed_uri_scheme(Tokenizer *self)
+Tokenizer_parse_bracketed_uri_scheme(memory_arena_t *a, Tokenizer *self)
 {
-    puts("Tokenizer_parse_bracketed_uri_scheme not implemeneted");
-    exit(1);
-    return -1;
+    static const char *valid = URISCHEME;
 
-    // TODO: Impelement;
+    if (Tokenizer_check_route(self, LC_EXT_LINK_URI) < 0) {
+        return 0;
+    }
 
-    // static const char *valid = URISCHEME;
-    // Textbuffer *buffer;
-    // PyObject *scheme;
-    // Py_UCS4 this;
-    // int slashes, i;
+    if (Tokenizer_push(a, self, LC_EXT_LINK_URI)) {
+        return 1;
+    }
 
-    // if (Tokenizer_check_route(self, LC_EXT_LINK_URI) < 0) {
-    //     return 0;
-    // }
-    // if (Tokenizer_push(self, LC_EXT_LINK_URI)) {
-    //     return -1;
-    // }
-    // if (Tokenizer_read(self, 0) == '/' && Tokenizer_read(self, 1) == '/') {
-    //     if (Tokenizer_emit_text(self, "//")) {
-    //         return -1;
-    //     }
-    //     self->head += 2;
-    // } else {
-    //     buffer = Textbuffer_new(&self->text);
-    //     if (!buffer) {
-    //         return -1;
-    //     }
-    //     while ((this = Tokenizer_read(self, 0))) {
-    //         i = 0;
-    //         while (1) {
-    //             if (!valid[i]) {
-    //                 goto end_of_loop;
-    //             }
-    //             if (this == (Py_UCS4) valid[i]) {
-    //                 break;
-    //             }
-    //             i++;
-    //         }
-    //         Textbuffer_write(buffer, this);
-    //         if (Tokenizer_emit_char(self, this)) {
-    //             Textbuffer_dealloc(buffer);
-    //             return -1;
-    //         }
-    //         self->head++;
-    //     }
-    // end_of_loop:
-    //     if (this != ':') {
-    //         Textbuffer_dealloc(buffer);
-    //         Tokenizer_fail_route(self);
-    //         return 0;
-    //     }
-    //     if (Tokenizer_emit_char(self, ':')) {
-    //         Textbuffer_dealloc(buffer);
-    //         return -1;
-    //     }
-    //     self->head++;
-    //     slashes = (Tokenizer_read(self, 0) == '/' && Tokenizer_read(self, 1)
-    //     == '/'); if (slashes) {
-    //         if (Tokenizer_emit_text(self, "//")) {
-    //             Textbuffer_dealloc(buffer);
-    //             return -1;
-    //         }
-    //         self->head += 2;
-    //     }
-    //     if (!is_scheme(buffer->data, buffer->length, slashes)) {
-    //         Tokenizer_fail_route(self);
-    //         Textbuffer_dealloc(buffer);
-    //         return 0;
-    //     }
-    //     Py_DECREF(scheme);
-    // }
-    // return 0;
+    if (Tokenizer_read(self, 0) == '/' && Tokenizer_read(self, 1) == '/') {
+        if (Tokenizer_emit_text(a, self, "//")) {
+            return 1;
+        }
+        self->head += 2;
+    } else {
+        Textbuffer *buffer = Textbuffer_new(a, &self->text);
+        if (!buffer) {
+            return 1;
+        }
+        char this;
+        while ((this = Tokenizer_read(self, 0))) {
+            size_t i = 0;
+            while (true) {
+                if (!valid[i]) {
+                    goto end_of_loop;
+                }
+                if (this == (Py_UCS4) valid[i]) {
+                    break;
+                }
+                i++;
+            }
+            Textbuffer_write(a, buffer, this);
+            if (Tokenizer_emit_char(a, self, this)) {
+                Textbuffer_dealloc(a, buffer);
+                return 1;
+            }
+            self->head++;
+        }
+    end_of_loop:
+        if (this != ':') {
+            Textbuffer_dealloc(a, buffer);
+            Tokenizer_fail_route(a, self);
+            return 0;
+        }
+        if (Tokenizer_emit_char(a, self, ':')) {
+            Textbuffer_dealloc(a, buffer);
+            return 1;
+        }
+        self->head++;
+        bool slashes = Tokenizer_read(self, 0) == '/' && Tokenizer_read(self, 1) == '/';
+        if (slashes) {
+            if (Tokenizer_emit_text(a, self, "//")) {
+                Textbuffer_dealloc(a, buffer);
+                return 1;
+            }
+            self->head += 2;
+        }
+        if (!is_scheme(buffer->data, buffer->length, slashes)) {
+            Tokenizer_fail_route(a, self);
+            Textbuffer_dealloc(a, buffer);
+            return 0;
+        }
+    }
+
+    return 0;
 }
 
 /*
     Parse the URI scheme of a free (no brackets) external link.
 */
 static int
-Tokenizer_parse_free_uri_scheme(Tokenizer *self)
+Tokenizer_parse_free_uri_scheme(memory_arena_t *a, Tokenizer *self)
 {
-    puts("Tokenizer_parse_free_uri_scheme not implemeneted");
-    exit(1);
-    return -1;
+    static const char *valid = URISCHEME;
+    Textbuffer *scheme = Textbuffer_new(a, &self->text);
+    if (!scheme) {
+        return 1;
+    }
 
-    // TODO: Implement in a more efficient and simple way
+    // We have to backtrack through the textbuffer looking for our scheme since
+    // it was just parsed as text:
+    for (int i = self->topstack->textbuffer->length - 1; i >= 0; i--) {
+        char ch = Textbuffer_read(self->topstack->textbuffer, i);
+        // Stop at the first non-word character (equivalent to \W in regex)
+        if (!isalnum(ch) && ch != '_') {
+            break;
+        }
+        int j = 0;
+        do {
+            if (!valid[j]) {
+                Textbuffer_dealloc(a, scheme);
+                FAIL_ROUTE(0);
+                return 0;
+            }
+        } while (ch != valid[j++]);
+        Textbuffer_write(a, scheme, ch);
+    }
 
-    // static const char *valid = URISCHEME;
-    // Textbuffer *scheme_buffer = Textbuffer_new(&self->text);
-    // PyObject *scheme;
-    // char ch;
-    // size_t i;
-    // int slashes, j;
-    // uint64_t new_context;
+    Textbuffer_reverse(scheme);
 
-    // if (!scheme_buffer) {
-    //     return -1;
-    // }
-    //// We have to backtrack through the textbuffer looking for our scheme since
-    //// it was just parsed as text:
-    // for (i = self->topstack->textbuffer->length - 1; i >= 0; i--) {
-    //     ch = Textbuffer_read(self->topstack->textbuffer, i);
-    //     // Stop at the first non-word character (equivalent to \W in regex)
-    //     if (!isalnum(ch) && ch != '_') {
-    //         break;
-    //     }
-    //     j = 0;
-    //     do {
-    //         if (!valid[j]) {
-    //             Textbuffer_dealloc(scheme_buffer);
-    //             FAIL_ROUTE(0);
-    //             return 0;
-    //         }
-    //     } while (ch != (Py_UCS4) valid[j++]);
-    //     Textbuffer_write(scheme_buffer, ch);
-    // }
-    // Textbuffer_reverse(scheme_buffer);
-    // scheme = Textbuffer_render(scheme_buffer);
-    // if (!scheme) {
-    //     Textbuffer_dealloc(scheme_buffer);
-    //     return -1;
-    // }
-    // slashes = (Tokenizer_read(self, 0) == '/' && Tokenizer_read(self, 1) ==
-    // '/'); if (!is_scheme(scheme, slashes)) {
-    //     Py_DECREF(scheme);
-    //     Textbuffer_dealloc(scheme_buffer);
-    //     FAIL_ROUTE(0);
-    //     return 0;
-    // }
-    // Py_DECREF(scheme);
-    // new_context = self->topstack->context | LC_EXT_LINK_URI;
-    // if (Tokenizer_check_route(self, new_context) < 0) {
-    //     Textbuffer_dealloc(scheme_buffer);
-    //     return 0;
-    // }
-    // if (Tokenizer_push(self, new_context)) {
-    //     Textbuffer_dealloc(scheme_buffer);
-    //     return -1;
-    // }
-    // if (Tokenizer_emit_textbuffer(self, scheme_buffer)) {
-    //     return -1;
-    // }
-    // if (Tokenizer_emit_char(self, ':')) {
-    //     return -1;
-    // }
-    // if (slashes) {
-    //     if (Tokenizer_emit_text(self, "//")) {
-    //         return -1;
-    //     }
-    //     self->head += 2;
-    // }
-    // return 0;
+    bool slashes = Tokenizer_read(self, 0) == '/' && Tokenizer_read(self, 1) == '/';
+    if (!is_scheme(scheme->data, scheme->length, slashes)) {
+        Textbuffer_dealloc(a, scheme);
+        FAIL_ROUTE(0);
+        return 1;
+    }
+
+    uint64_t new_context = self->topstack->context | LC_EXT_LINK_URI;
+    if (Tokenizer_check_route(self, new_context) < 0) {
+        Textbuffer_dealloc(a, scheme);
+        return 1;
+    }
+
+    if (Tokenizer_push(a, self, new_context)) {
+        Textbuffer_dealloc(a, scheme);
+        return 1;
+    }
+
+    if (Tokenizer_emit_textbuffer(a, self, scheme)) {
+        return 1;
+    }
+
+    if (Tokenizer_emit_char(a, self, ':')) {
+        return 1;
+    }
+
+    if (slashes) {
+        if (Tokenizer_emit_text(a, self, "//")) {
+            return 1;
+        }
+        self->head += 2;
+    }
+
+    return 0;
 }
 
 /*
@@ -709,8 +692,8 @@ Tokenizer_really_parse_external_link(memory_arena_t *a,
     char this, next;
     int parens = 0;
 
-    if (brackets ? Tokenizer_parse_bracketed_uri_scheme(self)
-                 : Tokenizer_parse_free_uri_scheme(self)) {
+    if (brackets ? Tokenizer_parse_bracketed_uri_scheme(a, self)
+                 : Tokenizer_parse_free_uri_scheme(a, self)) {
         return NULL;
     }
     if (BAD_ROUTE) {

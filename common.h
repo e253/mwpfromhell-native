@@ -24,6 +24,7 @@ SOFTWARE.
 
 #include "Python.h"
 #include "avl_tree.h"
+#include "definitions.h"
 #include "tokens.h"
 #include <assert.h>
 #include <ctype.h>

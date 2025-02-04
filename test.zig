@@ -643,17 +643,41 @@ test "basic horizontal rule" {
     try expect(tokenlist.tokens[0].type == c.HR);
 }
 
+// name:   complex_italics
+// label:  italics with a lot in them
+// input:  "''this is a&nbsp;test of [[Italic text|italics]] with {{plenty|of|stuff}}''"
+// output: [TagOpenOpen(wiki_markup="''"), Text(text="i"), TagCloseOpen(), Text(text="this is a"), HTMLEntityStart(), Text(text="nbsp"), HTMLEntityEnd(), Text(text="test of "), WikilinkOpen(), Text(text="Italic text"), WikilinkSeparator(), Text(text="italics"), WikilinkClose(), Text(text=" with "), TemplateOpen(), Text(text="plenty"), TemplateParamSeparator(), Text(text="of"), TemplateParamSeparator(), Text(text="stuff"), TemplateClose(), TagOpenClose(), Text(text="i"), TagCloseClose()]
 test "italics with a lot in them" {
-    //const txt = "''this is a&nbsp;test of [[Italic text|italics]] with {{plenty|of|stuff}}";
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
 
-    //var tokenizer = std.mem.zeroes(c.Tokenizer);
-    //tokenizer.text.data = @constCast(txt.ptr);
-    //tokenizer.text.length = txt.len;
+    const actual = tokenize_arena(&a, "''this is a&nbsp;test of [[Italic text|italics]] with {{plenty|of|stuff}}''");
 
-    //const tokenlist: *c.TokenList = @ptrCast(c.Tokenizer_parse(&tokenizer, 0, 1));
-    //_ = tokenlist;
+    const expected = [_]c.Token{
+        .{ .type = c.ItalicOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("this is a") } },
+        .{ .type = c.HTMLEntityStart },
+        .{ .type = c.Text, .ctx = .{ .data = cText("nbsp") } },
+        .{ .type = c.HTMLEntityEnd },
+        .{ .type = c.Text, .ctx = .{ .data = cText("test of ") } },
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("Italic text") } },
+        .{ .type = c.WikilinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("italics") } },
+        .{ .type = c.WikilinkClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" with ") } },
+        .{ .type = c.TemplateOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("plenty") } },
+        .{ .type = c.TemplateParamSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("of") } },
+        .{ .type = c.TemplateParamSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("stuff") } },
+        .{ .type = c.TemplateClose },
+        .{ .type = c.ItalicClose },
+    };
 
-    return error.SkipZigTest;
+    try expectTokensEql(&expected, actual);
 }
 
 test "italics spanning mulitple lines" {
@@ -762,78 +786,90 @@ test "text that starts bold/italic, then is just italics" {
 }
 
 test "text that starts just bold, then is bold/italics" {
-    const txt = "''italics'''both'''''";
-    const tokenlist = tokenize(txt);
+    const actual = tokenize("''italics'''both'''''");
 
-    try expect(tokenlist.len == 6);
-    try expect(tokenlist.tokens[0].type == c.ItalicOpen);
-    try expectTextTokEql("italics", tokenlist.tokens[1]);
-    try expect(tokenlist.tokens[2].type == c.BoldOpen);
-    try expectTextTokEql("both", tokenlist.tokens[3]);
-    try expect(tokenlist.tokens[4].type == c.BoldClose);
-    try expect(tokenlist.tokens[5].type == c.ItalicClose);
+    const expected = [_]c.Token{
+        .{ .type = c.ItalicOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("italics") } },
+        .{ .type = c.BoldOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("both") } },
+        .{ .type = c.BoldClose },
+        .{ .type = c.ItalicClose },
+    };
+
+    try expectTokensEql(&expected, actual);
 }
 
 test "text that starts italic, then is bold" {
-    const txt = "none''italics'''''bold'''none";
-    const tokenlist = tokenize(txt);
+    const actual = tokenize("none''italics'''''bold'''none");
 
-    try expect(tokenlist.len == 8);
-    try expectTextTokEql("none", tokenlist.tokens[0]);
-    try expect(tokenlist.tokens[1].type == c.ItalicOpen);
-    try expectTextTokEql("italics", tokenlist.tokens[2]);
-    try expect(tokenlist.tokens[3].type == c.ItalicClose);
-    try expect(tokenlist.tokens[4].type == c.BoldOpen);
-    try expectTextTokEql("bold", tokenlist.tokens[5]);
-    try expect(tokenlist.tokens[6].type == c.BoldClose);
-    try expectTextTokEql("none", tokenlist.tokens[7]);
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("none") } },
+        .{ .type = c.ItalicOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("italics") } },
+        .{ .type = c.ItalicClose },
+        .{ .type = c.BoldOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bold") } },
+        .{ .type = c.BoldClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText("none") } },
+    };
+
+    try expectTokensEql(&expected, actual);
 }
 
 test "text that starts bold, then is italic" {
-    const txt = "none'''bold'''''italics''none";
-    const tokenlist = tokenize(txt);
+    const actual = tokenize("none'''bold'''''italics''none");
 
-    try expect(tokenlist.len == 8);
-    try expectTextTokEql("none", tokenlist.tokens[0]);
-    try expect(tokenlist.tokens[1].type == c.BoldOpen);
-    try expectTextTokEql("bold", tokenlist.tokens[2]);
-    try expect(tokenlist.tokens[3].type == c.BoldClose);
-    try expect(tokenlist.tokens[4].type == c.ItalicOpen);
-    try expectTextTokEql("italics", tokenlist.tokens[5]);
-    try expect(tokenlist.tokens[6].type == c.ItalicClose);
-    try expectTextTokEql("none", tokenlist.tokens[7]);
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("none") } },
+        .{ .type = c.BoldOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bold") } },
+        .{ .type = c.BoldClose },
+        .{ .type = c.ItalicOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("italics") } },
+        .{ .type = c.ItalicClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText("none") } },
+    };
+
+    try expectTokensEql(&expected, actual);
 }
 
 test "five ticks to open, three to close (bold)" {
-    const txt = "'''''foobar'''";
-    const tokenlist = tokenize(txt);
+    const actual = tokenize("'''''foobar'''");
 
-    const tokenarr = [_]c.Token{
+    const expected = [_]c.Token{
         .{ .type = c.Text, .ctx = .{ .data = cText("''") } },
         .{ .type = c.BoldOpen },
         .{ .type = c.Text, .ctx = .{ .data = cText("foobar") } },
         .{ .type = c.BoldClose },
     };
 
-    try expectTokensEql(&tokenarr, tokenlist);
+    try expectTokensEql(&expected, actual);
 }
 
 test "five ticks to open, two to close (bold)" {
-    const txt = "'''''foobar''";
-    const tokenlist = tokenize(txt);
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
 
-    const tokenarr = [_]c.Token{
+    const actual = tokenize_arena(&a, "'''''foobar''");
+
+    const expected = [_]c.Token{
         .{ .type = c.Text, .ctx = .{ .data = cText("'''") } },
         .{ .type = c.ItalicOpen },
         .{ .type = c.Text, .ctx = .{ .data = cText("foobar") } },
         .{ .type = c.ItalicClose },
     };
 
-    try expectTokensEql(&tokenarr, tokenlist);
+    try expectTokensEql(&expected, actual);
 }
 
 test "four ticks" {
-    const actual = tokenize("foo ''''bar'''' baz");
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "foo ''''bar'''' baz");
 
     const expected = [_]c.Token{
         .{ .type = c.Text, .ctx = .{ .data = cText("foo '") } },
@@ -851,7 +887,11 @@ test "four ticks" {
 // input:  "foo ''''bar'' baz"
 // output: [Text(text="foo ''"), TagOpenOpen(wiki_markup="''"), Text(text="i"), TagCloseOpen(), Text(text="bar"), TagOpenClose(), Text(text="i"), TagCloseClose(), Text(text=" baz")]
 test "four ticks to open, two to close" {
-    const actual = tokenize("foo ''''bar'' baz");
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "foo ''''bar'' baz");
 
     const expected = [_]c.Token{
         .{ .type = c.Text, .ctx = .{ .data = cText("foo ''") } },
@@ -914,7 +954,11 @@ test "two ticks to open, four to close" {
 // input:  "foo ''bar''' baz''"
 // output: [Text(text="foo "), TagOpenOpen(wiki_markup="''"), Text(text="i"), TagCloseOpen(), Text(text="bar''' baz"), TagOpenClose(), Text(text="i"), TagCloseClose()]
 test "two ticks to open, three to close, two afterwords" {
-    const actual = tokenize("foo ''bar''' baz''");
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "foo ''bar''' baz''");
 
     const expected = [_]c.Token{
         .{ .type = c.Text, .ctx = .{ .data = cText("foo ") } },
@@ -931,7 +975,11 @@ test "two ticks to open, three to close, two afterwords" {
 // input:  "foo ''bar'''' baz''''"
 // output: [Text(text="foo ''bar'"), TagOpenOpen(wiki_markup="'''"), Text(text="b"), TagCloseOpen(), Text(text=" baz'"), TagOpenClose(), Text(text="b"), TagCloseClose()]
 test "two ticks to open, four to close, four afterwards" {
-    const actual = tokenize("foo ''bar'''' baz''''");
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "foo ''bar'''' baz''''");
 
     const expected = [_]c.Token{
         .{ .type = c.Text, .ctx = .{ .data = cText("foo ''bar'") } },
@@ -948,7 +996,11 @@ test "two ticks to open, four to close, four afterwards" {
 // input:  "'''''''seven'''''''"
 // output: [Text(text="''"), TagOpenOpen(wiki_markup="''"), Text(text="i"), TagCloseOpen(), TagOpenOpen(wiki_markup="'''"), Text(text="b"), TagCloseOpen(), Text(text="seven''"), TagOpenClose(), Text(text="b"), TagCloseClose(), TagOpenClose(), Text(text="i"), TagCloseClose()]
 test "seven ticks" {
-    const actual = tokenize("'''''''seven'''''''");
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "'''''''seven'''''''");
 
     const expected = [_]c.Token{
         .{ .type = c.Text, .ctx = .{ .data = cText("''") } },
@@ -967,7 +1019,11 @@ test "seven ticks" {
 // input:  "'''''testing"
 // output: [Text(text="'''''testing")]
 test "five ticks (bold and italics) that don't end" {
-    const actual = tokenize("'''''testing");
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "'''''testing");
 
     const expected = [_]c.Token{
         .{ .type = c.Text, .ctx = .{ .data = cText("'''''testing") } },
@@ -999,7 +1055,11 @@ test "ul with a lot in it" {
 // input:  "* this has a template with a {{line|\nbreak}}\nthis is not part of the list"
 // output: [TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text=" this has a template with a "), TemplateOpen(), Text(text="line"), TemplateParamSeparator(), Text(text="\nbreak"), TemplateClose(), Text(text="\nthis is not part of the list")]
 test "ul with a template that spans multiple lines" {
-    const actual = tokenize("* this has a template with a {{line|\nbreak}}\nthis is not part of the list");
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "* this has a template with a {{line|\nbreak}}\nthis is not part of the list");
 
     const expected = [_]c.Token{
         .{ .type = c.UnorderedListItem },
@@ -1020,7 +1080,11 @@ test "ul with a template that spans multiple lines" {
 // input:  "a\n*b\n*c\nd\n*e\nf"
 // output: [Text(text="a\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="b\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="c\nd\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="e\nf")]
 test "multiple adjacent uls" {
-    const actual = tokenize("a\n*b\n*c\nd\n*e\nf");
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "a\n*b\n*c\nd\n*e\nf");
 
     const expected = [_]c.Token{
         .{ .type = c.Text, .ctx = .{ .data = cText("a\n") } },
