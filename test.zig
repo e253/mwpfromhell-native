@@ -1699,72 +1699,282 @@ test "dd with a lot in it" {
 // label:  dd with a template that spans mddtiple lines
 // input:  ": this has a template with a {{line|\nbreak}}\nthis is not part of the list"
 // output: [TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text=" this has a template with a "), TemplateOpen(), Text(text="line"), TemplateParamSeparator(), Text(text="\nbreak"), TemplateClose(), Text(text="\nthis is not part of the list")]
-//
-// ---
-//
+test "dd with a template that spans multiple lines" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, ": this has a template with a {{line|\nbreak}}\nthis is not part of the list");
+
+    const expected = [_]c.Token{
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" this has a template with a ") } },
+        .{ .type = c.TemplateOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("line") } },
+        .{ .type = c.TemplateParamSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("\nbreak") } },
+        .{ .type = c.TemplateClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText("\nthis is not part of the list") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   dd_adjacent
 // label:  mddtiple adjacent dds
 // input:  "a\n:b\n:c\nd\n:e\nf"
 // output: [Text(text="a\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="b\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="c\nd\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="e\nf")]
-//
-// ---
-//
+test "multiple adjacent dds" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "a\n:b\n:c\nd\n:e\nf");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("a\n") } },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("b\n") } },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("c\nd\n") } },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("e\nf") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   dd_depths
-// label:  mddtiple adjacent dds, with differing depths
+// label:  multiple adjacent dds, with differing depths
 // input:  ":a\n::b\n:::c\n::::::::d\n::e\nf\n:::g"
 // output: [TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="a\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="b\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="c\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="d\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="e\nf\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="g")]
-//
-// ---
-//
+test "multiple adjacent dds, with differing depths" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, ":a\n::b\n:::c\n::::::::d\n::e\nf\n:::g");
+
+    const expected = [_]c.Token{
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("a\n") } },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("b\n") } },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("c\n") } },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("d\n") } },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("e\nf\n") } },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("g") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   dd_space_before
 // label:  dds with space before them
 // input:  "foo    :bar\n :baz\n:buzz"
 // output: [Text(text="foo    :bar\n :baz\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="buzz")]
-//
-// ---
-//
+test "dds with space before them" {
+    // waiting on Tokenizer_remove_uri_scheme_from_textbuffer
+    return error.SkipZigTest;
+    // var a: Arena = std.mem.zeroes(Arena);
+    // try std.testing.expect(c.arena_init(&a) == 0);
+    // defer c.arena_clear(&a);
+
+    // const actual = tokenize_arena(&a, "foo    :bar\n :baz\n:buzz");
+
+    // const expected = [_]c.Token{
+    //     .{ .type = c.Text, .ctx = .{ .data = cText("foo    :bar\n :baz\n") } },
+    //     .{ .type = c.DescriptionItem },
+    //     .{ .type = c.Text, .ctx = .{ .data = cText("buzz") } },
+    // };
+
+    // try expectTokensEql(&expected, actual);
+}
+
 // name:   dd_interruption
 // label:  high-depth dd with something blocking it
 // input:  "::f:oobar"
 // output: [TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="f:oobar")]
-//
-// ---
-//
+test "high-depth dd with something blocking it" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "::f:oobar");
+
+    const expected = [_]c.Token{
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("f:oobar") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   dt_dd_mix
 // label:  a mix of adjacent dts and dds
 // input:  ";a\n;:b\n;::c\n;::;:;:;d\n;:e\nf\n::;g"
 // output: [TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="a\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="b\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="c\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="d\n"), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="e\nf\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="g")]
-//
-// ---
-//
+test "a mix of adjacent dts and dds" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, ";a\n;:b\n;::c\n;::;:;:;d\n;:e\nf\n::;g");
+
+    const expected = [_]c.Token{
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.Text, .ctx = .{ .data = cText("a\n") } },
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("b\n") } },
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("c\n") } },
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.Text, .ctx = .{ .data = cText("d\n") } },
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("e\nf\n") } },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.Text, .ctx = .{ .data = cText("g") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   dt_dd_mix2
 // label:  the correct usage of a dt/dd unit, as in a dl
 // input:  ";foo:bar:baz"
 // output: [TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="foo"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="bar:baz")]
-//
-// ---
-//
+test "the correct usage of a dt/dd unit, as in a dl" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, ";foo:bar:baz");
+
+    const expected = [_]c.Token{
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo") } },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar:baz") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   dt_dd_mix3
 // label:  another example of correct (but strange) dt/dd usage
 // input:  ":;;::foo:bar:baz"
 // output: [TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="foo"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="bar:baz")]
-//
-// ---
-//
+test "another example of correct (but strange) dt/dd usage" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, ":;;::foo:bar:baz");
+
+    const expected = [_]c.Token{
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo") } },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar:baz") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   dt_dd_mix4
 // label:  another example of correct dt/dd usage, with a trigger for a specific parse route
 // input:  ";foo]:bar"
 // output: [TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="foo]"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="bar")]
-//
-// ---
-//
+test "another example of correct dt/dd usage, with a trigger for a specific parse route" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, ";foo]:bar");
+
+    const expected = [_]c.Token{
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo]") } },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   ul_ol_dt_dd_mix
 // label:  an assortment of uls, ols, dds, and dts
 // input:  ";:#*foo\n:#*;foo\n#*;:foo\n*;:#foo"
 // output: [TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text="foo\n"), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text="foo\n"), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text="foo\n"), TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text="foo")]
-//
-// ---
-//
+test "an assortment of uls, ols, dds, and dts" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, ";:#*foo\n:#*;foo\n#*;:foo\n*;:#foo");
+    // printTokens(actual);
+
+    const expected = [_]c.Token{
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.OrderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo\n") } },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.OrderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo\n") } },
+        .{ .type = c.OrderedListItem },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo\n") } },
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.OrderedListItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   hr_text_before
 // label:  text before an otherwise-valid hr
 // input:  "foo----"
