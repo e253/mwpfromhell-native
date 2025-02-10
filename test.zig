@@ -707,14 +707,87 @@ test "italics with something that looks like an end but isn't" {
     return error.SkipZigTest;
 }
 
+// name:   italics_start_outside_end_inside
+// label:  italics that start outside a link and end inside it
+// input:  "''foo[[bar|baz'']]spam"
+// output: [Text(text="''foo"), WikilinkOpen(), Text(text="bar"), WikilinkSeparator(), Text(text="baz''"), WikilinkClose(), Text(text="spam")]
 test "italics that start outside a link and end inside it" {
-    //const txt = "''foo[[bar|baz'']]spam";
-    return error.SkipZigTest;
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "''foo[[bar|baz'']]spam");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("''foo") } },
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar") } },
+        .{ .type = c.WikilinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("baz''") } },
+        .{ .type = c.WikilinkClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText("spam") } },
+    };
+
+    try expectTokensEql(&expected, actual);
 }
 
+// name:   italics_start_inside_end_outside
+// label:  italics that start inside a link and end outside it
+// input:  "[[foo|''bar]]baz''spam"
+// output: [Text(text="[[foo|"), TagOpenOpen(wiki_markup="''"), Text(text="i"), TagCloseOpen(), Text(text="bar]]baz"), TagOpenClose(), Text(text="i"), TagCloseClose(), Text(text="spam")]
+test "italics that start inside a link and end outside it" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo|''bar]]baz''spam");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[foo|") } },
+        .{ .type = c.ItalicOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar]]baz") } },
+        .{ .type = c.ItalicClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText("spam") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   complex_bold
+// label:  bold with a lot in it
+// input:  "'''this is a&nbsp;test of [[Bold text|bold]] with {{plenty|of|stuff}}'''"
+// output: [TagOpenOpen(wiki_markup="'''"), Text(text="b"), TagCloseOpen(), Text(text="this is a"), HTMLEntityStart(), Text(text="nbsp"), HTMLEntityEnd(), Text(text="test of "), WikilinkOpen(), Text(text="Bold text"), WikilinkSeparator(), Text(text="bold"), WikilinkClose(), Text(text=" with "), TemplateOpen(), Text(text="plenty"), TemplateParamSeparator(), Text(text="of"), TemplateParamSeparator(), Text(text="stuff"), TemplateClose(), TagOpenClose(), Text(text="b"), TagCloseClose()]
 test "bold with a lot in it" {
-    //const txt = "'''this is a&nbsp;test of [[Bold text|bold]] with {{plenty|of|stuff}}'''";
-    return error.SkipZigTest;
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "'''this is a&nbsp;test of [[Bold text|bold]] with {{plenty|of|stuff}}'''");
+
+    const expected = [_]c.Token{
+        .{ .type = c.BoldOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("this is a") } },
+        .{ .type = c.HTMLEntityStart },
+        .{ .type = c.Text, .ctx = .{ .data = cText("nbsp") } },
+        .{ .type = c.HTMLEntityEnd },
+        .{ .type = c.Text, .ctx = .{ .data = cText("test of ") } },
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("Bold text") } },
+        .{ .type = c.WikilinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bold") } },
+        .{ .type = c.WikilinkClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" with ") } },
+        .{ .type = c.TemplateOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("plenty") } },
+        .{ .type = c.TemplateParamSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("of") } },
+        .{ .type = c.TemplateParamSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("stuff") } },
+        .{ .type = c.TemplateClose },
+        .{ .type = c.BoldClose },
+    };
+
+    try expectTokensEql(&expected, actual);
 }
 
 test "bold spanning mulitple lines" {
@@ -746,8 +819,23 @@ test "bold with something that looks like an end but isn't" {
 }
 
 test "bold that start outside a link and end inside it" {
-    //const txt = "'''foo[[bar|baz''']]spam";
-    return error.SkipZigTest;
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "'''foo[[bar|baz''']]spam");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("'''foo") } },
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar") } },
+        .{ .type = c.WikilinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("baz'''") } },
+        .{ .type = c.WikilinkClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText("spam") } },
+    };
+
+    try expectTokensEql(&expected, actual);
 }
 
 test "bold and italics together" {
@@ -1037,17 +1125,31 @@ test "five ticks (bold and italics) that don't end" {
 // input:  "* this is a&nbsp;test of an [[Unordered list|ul]] with {{plenty|of|stuff}}"
 // output: [TagOpenOpen(wiki_markup="*"), Text(text="li"), TagCloseSelfclose(), Text(text=" this is a"), HTMLEntityStart(), Text(text="nbsp"), HTMLEntityEnd(), Text(text="test of an "), WikilinkOpen(), Text(text="Unordered list"), WikilinkSeparator(), Text(text="ul"), WikilinkClose(), Text(text=" with "), TemplateOpen(), Text(text="plenty"), TemplateParamSeparator(), Text(text="of"), TemplateParamSeparator(), Text(text="stuff"), TemplateClose()]
 test "ul with a lot in it" {
-    //const actual = tokenize("* this is a&nbsp;test of an [[Unordered list|ul]] with {{plenty|of|stuff}}");
+    const actual = tokenize("* this is a&nbsp;test of an [[Unordered list|ul]] with {{plenty|of|stuff}}");
 
-    //const expected = [_]c.Token{
-    //    .{ .type = c.UnorderedListItem },
-    //    .{ .type = c.Text, .ctx = .{ .data = cText(" this is a") } },
-    //    .{ .type = c.HTMLEntityStart },
-    //    .{ .type = c.Text, .ctx = .{ .data = cText("") } },
-    //};
+    const expected = [_]c.Token{
+        .{ .type = c.UnorderedListItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" this is a") } },
+        .{ .type = c.HTMLEntityStart },
+        .{ .type = c.Text, .ctx = .{ .data = cText("nbsp") } },
+        .{ .type = c.HTMLEntityEnd },
+        .{ .type = c.Text, .ctx = .{ .data = cText("test of an ") } },
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("Unordered list") } },
+        .{ .type = c.WikilinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("ul") } },
+        .{ .type = c.WikilinkClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" with ") } },
+        .{ .type = c.TemplateOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("plenty") } },
+        .{ .type = c.TemplateParamSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("of") } },
+        .{ .type = c.TemplateParamSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("stuff") } },
+        .{ .type = c.TemplateClose },
+    };
 
-    //try expectTokensEql(&expected, actual);
-    return error.SkipZigTest;
+    try expectTokensEql(&expected, actual);
 }
 
 // name:   ul_multiline_template
@@ -1186,20 +1288,35 @@ test "high-depth ul with something blocking it" {
 // input:  "# this is a&nbsp;test of an [[Ordered list|ol]] with {{plenty|of|stuff}}"
 // output: [TagOpenOpen(wiki_markup="#"), Text(text="li"), TagCloseSelfclose(), Text(text=" this is a"), HTMLEntityStart(), Text(text="nbsp"), HTMLEntityEnd(), Text(text="test of an "), WikilinkOpen(), Text(text="Ordered list"), WikilinkSeparator(), Text(text="ol"), WikilinkClose(), Text(text=" with "), TemplateOpen(), Text(text="plenty"), TemplateParamSeparator(), Text(text="of"), TemplateParamSeparator(), Text(text="stuff"), TemplateClose()]
 test "ol with a lot in it" {
-    // var a: Arena = std.mem.zeroes(Arena);
-    // try std.testing.expect(c.arena_init(&a) == 0);
-    // defer c.arena_clear(&a);
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
 
-    // const actual = tokenize_arena(&a, "# this is a&nbsp;test of an [[Ordered list|ol]] with {{plenty|of|stuff}}");
+    const actual = tokenize_arena(&a, "# this is a&nbsp;test of an [[Ordered list|ol]] with {{plenty|of|stuff}}");
 
-    // const expected = [_]c.Token{
-    //     .{ .type = c.UnorderedListItem },
-    //     .{ .type = c.UnorderedListItem },
-    //     .{ .type = c.Text, .ctx = .{ .data = cText("f*oobar") } },
-    // };
+    const expected = [_]c.Token{
+        .{ .type = c.OrderedListItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" this is a") } },
+        .{ .type = c.HTMLEntityStart },
+        .{ .type = c.Text, .ctx = .{ .data = cText("nbsp") } },
+        .{ .type = c.HTMLEntityEnd },
+        .{ .type = c.Text, .ctx = .{ .data = cText("test of an ") } },
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("Ordered list") } },
+        .{ .type = c.WikilinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("ol") } },
+        .{ .type = c.WikilinkClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" with ") } },
+        .{ .type = c.TemplateOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("plenty") } },
+        .{ .type = c.TemplateParamSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("of") } },
+        .{ .type = c.TemplateParamSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("stuff") } },
+        .{ .type = c.TemplateClose },
+    };
 
-    // try expectTokensEql(&expected, actual);
-    return error.SkipZigTest;
+    try expectTokensEql(&expected, actual);
 }
 
 // name:   ol_multiline_template
@@ -1380,19 +1497,35 @@ test "a mix of adjacent uls and ols" {
 // input:  "; this is a&nbsp;test of an [[description term|dt]] with {{plenty|of|stuff}}"
 // output: [TagOpenOpen(wiki_markup=";"), Text(text="dt"), TagCloseSelfclose(), Text(text=" this is a"), HTMLEntityStart(), Text(text="nbsp"), HTMLEntityEnd(), Text(text="test of an "), WikilinkOpen(), Text(text="description term"), WikilinkSeparator(), Text(text="dt"), WikilinkClose(), Text(text=" with "), TemplateOpen(), Text(text="plenty"), TemplateParamSeparator(), Text(text="of"), TemplateParamSeparator(), Text(text="stuff"), TemplateClose()]
 test "dt with a lot in it" {
-    // var a: Arena = std.mem.zeroes(Arena);
-    // try std.testing.expect(c.arena_init(&a) == 0);
-    // defer c.arena_clear(&a);
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
 
-    // const actual = tokenize_arena(&a, "; this is a&nbsp;test of an [[description term|dt]] with {{plenty|of|stuff}}");
+    const actual = tokenize_arena(&a, "; this is a&nbsp;test of an [[description term|dt]] with {{plenty|of|stuff}}");
 
-    // const expected = [_]c.Token{
-    //     .{ .type = c.DescriptionTerm },
-    // };
+    const expected = [_]c.Token{
+        .{ .type = c.DescriptionTerm },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" this is a") } },
+        .{ .type = c.HTMLEntityStart },
+        .{ .type = c.Text, .ctx = .{ .data = cText("nbsp") } },
+        .{ .type = c.HTMLEntityEnd },
+        .{ .type = c.Text, .ctx = .{ .data = cText("test of an ") } },
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("description term") } },
+        .{ .type = c.WikilinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("dt") } },
+        .{ .type = c.WikilinkClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" with ") } },
+        .{ .type = c.TemplateOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("plenty") } },
+        .{ .type = c.TemplateParamSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("of") } },
+        .{ .type = c.TemplateParamSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("stuff") } },
+        .{ .type = c.TemplateClose },
+    };
 
-    // try expectTokensEql(&expected, actual);
-
-    return error.SkipZigTest;
+    try expectTokensEql(&expected, actual);
 }
 
 // name:   dt_multiline_template
@@ -1530,9 +1663,38 @@ test "high-depth dt with something blocking it" {
 // label:  dd with a lot in it
 // input:  ": this is a&nbsp;test of an [[description item|dd]] with {{plenty|of|stuff}}"
 // output: [TagOpenOpen(wiki_markup=":"), Text(text="dd"), TagCloseSelfclose(), Text(text=" this is a"), HTMLEntityStart(), Text(text="nbsp"), HTMLEntityEnd(), Text(text="test of an "), WikilinkOpen(), Text(text="description item"), WikilinkSeparator(), Text(text="dd"), WikilinkClose(), Text(text=" with "), TemplateOpen(), Text(text="plenty"), TemplateParamSeparator(), Text(text="of"), TemplateParamSeparator(), Text(text="stuff"), TemplateClose()]
-//
-// ---
-//
+test "dd with a lot in it" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, ": this is a&nbsp;test of an [[description item|dd]] with {{plenty|of|stuff}}");
+
+    const expected = [_]c.Token{
+        .{ .type = c.DescriptionItem },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" this is a") } },
+        .{ .type = c.HTMLEntityStart },
+        .{ .type = c.Text, .ctx = .{ .data = cText("nbsp") } },
+        .{ .type = c.HTMLEntityEnd },
+        .{ .type = c.Text, .ctx = .{ .data = cText("test of an ") } },
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("description item") } },
+        .{ .type = c.WikilinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("dd") } },
+        .{ .type = c.WikilinkClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" with ") } },
+        .{ .type = c.TemplateOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("plenty") } },
+        .{ .type = c.TemplateParamSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("of") } },
+        .{ .type = c.TemplateParamSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("stuff") } },
+        .{ .type = c.TemplateClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   dd_multiline_template
 // label:  dd with a template that spans mddtiple lines
 // input:  ": this has a template with a {{line|\nbreak}}\nthis is not part of the list"
