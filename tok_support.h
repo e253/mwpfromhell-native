@@ -56,7 +56,7 @@ char Tokenizer_read_backwards(Tokenizer*, size_t);
 
 #define Tokenizer_emit(a, self, token) Tokenizer_emit_token(a, self, token, 0)
 #define Tokenizer_emit_first(a, self, token) Tokenizer_emit_token(a, self, token, 1)
-#define Tokenizer_emit_kwargs(self, token, kwargs) \
-    Tokenizer_emit_token_kwargs(self, token, kwargs, 0)
-#define Tokenizer_emit_first_kwargs(self, token, kwargs) \
-    Tokenizer_emit_token_kwargs(self, token, kwargs, 1)
+// #define Tokenizer_emit_kwargs(self, token, kwargs) \
+//     Tokenizer_emit_token_kwargs(self, token, kwargs, 0)
+// #define Tokenizer_emit_first_kwargs(self, token, kwargs) \
+//     Tokenizer_emit_token_kwargs(self, token, kwargs, 1)

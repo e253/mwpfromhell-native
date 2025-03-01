@@ -142,12 +142,17 @@ typedef struct {
 } HeadingContext;
 
 typedef struct {
+    char quote;
+} TagAttrQuoteContext;
+
+typedef struct {
     TokenType type;
 
     union {
         ExternalLinkSeparatorContext external_link_sep;
         ExternalLinkOpenContext external_link_open;
         HeadingContext heading;
+        TagAttrQuoteContext tag_attr_quote;
         void* data; // default
     } ctx;
 } Token;

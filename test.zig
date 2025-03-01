@@ -702,9 +702,20 @@ test "italics without an ending tag" {
 }
 
 test "italics with something that looks like an end but isn't" {
-    //const txt = "''this is 'not' the en'd'<nowiki>''</nowiki>";
-    //const tokenlist = tokenize(txt);
-    return error.SkipZigTest;
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "''this is 'not' the en'd'<nowiki>''</nowiki>");
+
+    const expected = [_]c.Token{
+        .{ .type = c.ItalicOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("this is 'not' the en'd'<nowiki>") } },
+        .{ .type = c.ItalicClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText("</nowiki>") } },
+    };
+
+    try expectTokensEql(&expected, actual);
 }
 
 // name:   italics_start_outside_end_inside
@@ -813,9 +824,20 @@ test "bold without an ending tag" {
 }
 
 test "bold with something that looks like an end but isn't" {
-    //const txt = "'''this is 'not' the en''d'<nowiki>'''</nowiki>";
-    //const tokenlist = tokenize(txt);
-    return error.SkipZigTest;
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "'''this is 'not' the en''d'<nowiki>'''</nowiki>");
+
+    const expected = [_]c.Token{
+        .{ .type = c.BoldOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("this is 'not' the en''d'<nowiki>") } },
+        .{ .type = c.BoldClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText("</nowiki>") } },
+    };
+
+    try expectTokensEql(&expected, actual);
 }
 
 test "bold that start outside a link and end inside it" {
@@ -1979,73 +2001,206 @@ test "an assortment of uls, ols, dds, and dts" {
 // label:  text before an otherwise-valid hr
 // input:  "foo----"
 // output: [Text(text="foo----")]
-//
-// ---
-//
+test "text before an otherwise valid hr" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "foo----");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo----") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   hr_text_after
 // label:  text after a valid hr
 // input:  "----bar"
 // output: [TagOpenOpen(wiki_markup="----"), Text(text="hr"), TagCloseSelfclose(), Text(text="bar")]
-//
-// ---
-//
+test "text after a valid hr" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "----bar");
+
+    const expected = [_]c.Token{
+        .{ .type = c.HR },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   hr_text_before_after
 // label:  text at both ends of an otherwise-valid hr
 // input:  "foo----bar"
 // output: [Text(text="foo----bar")]
-//
-// ---
-//
+test "text at both ends of an otherwise-valid hr" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "foo----bar");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo----bar") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   hr_newlines
 // label:  newlines surrounding a valid hr
 // input:  "foo\n----\nbar"
 // output: [Text(text="foo\n"), TagOpenOpen(wiki_markup="----"), Text(text="hr"), TagCloseSelfclose(), Text(text="\nbar")]
-//
-// ---
-//
+test "newlines surrounding a valid hr" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "foo\n----\nbar");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo\n") } },
+        .{ .type = c.HR },
+        .{ .type = c.Text, .ctx = .{ .data = cText("\nbar") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   hr_adjacent
 // label:  two adjacent hrs
 // input:  "----\n----"
 // output: [TagOpenOpen(wiki_markup="----"), Text(text="hr"), TagCloseSelfclose(), Text(text="\n"), TagOpenOpen(wiki_markup="----"), Text(text="hr"), TagCloseSelfclose()]
-//
-// ---
-//
+test "two adjacent hrs" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "----\n----");
+
+    const expected = [_]c.Token{
+        .{ .type = c.HR },
+        .{ .type = c.Text, .ctx = .{ .data = cText("\n") } },
+        .{ .type = c.HR },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   hr_adjacent_space
 // label:  two adjacent hrs, with a space before the second one, making it invalid
 // input:  "----\n ----"
 // output: [TagOpenOpen(wiki_markup="----"), Text(text="hr"), TagCloseSelfclose(), Text(text="\n ----")]
-//
-// ---
-//
+test "two adjacent hrs, with a space before the second one, making it invalid" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "----\n ----");
+
+    const expected = [_]c.Token{
+        .{ .type = c.HR },
+        .{ .type = c.Text, .ctx = .{ .data = cText("\n ----") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   hr_short
 // label:  an invalid three-hyphen-long hr
 // input:  "---"
 // output: [Text(text="---")]
-//
-// ---
-//
+test "an invalid three-hyphen-long hr" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "---");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("---") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   hr_long
 // label:  a very long, valid hr
 // input:  "------------------------------------------"
 // output: [TagOpenOpen(wiki_markup="------------------------------------------"), Text(text="hr"), TagCloseSelfclose()]
-//
-// ---
-//
+test "a ver long , valid hr" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "------------------------------------------");
+
+    const expected = [_]c.Token{
+        .{ .type = c.HR },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   hr_interruption_short
 // label:  a hr that is interrupted, making it invalid
 // input:  "---x-"
 // output: [Text(text="---x-")]
-//
-// ---
-//
+test "a hr that is interrupted, making it invalid" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "---x-");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("---x-") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   hr_interruption_long
 // label:  a hr that is interrupted, but the first part remains valid because it is long enough
 // input:  "----x--"
 // output: [TagOpenOpen(wiki_markup="----"), Text(text="hr"), TagCloseSelfclose(), Text(text="x--")]
-//
-// ---
-//
+test "a hr that is interrupted, but the first part remains valid because it is long enough" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "----x--");
+
+    const expected = [_]c.Token{
+        .{ .type = c.HR },
+        .{ .type = c.Text, .ctx = .{ .data = cText("x--") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   nowiki_cancel
 // label:  a nowiki tag before a list causes it to not be parsed
 // input:  "<nowiki />* Unordered list"
 // output: [TagOpenOpen(), Text(text="nowiki"), TagCloseSelfclose(padding=" "), Text(text="* Unordered list")]
+test "a nowiki tag before a list causes it to not be parsed" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "<nowiki />* Unordered list");
+
+    const expected = [_]c.Token{
+        .{ .type = c.TagOpenOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("nowiki") } },
+        .{ .type = c.TagCloseSelfclose },
+        .{ .type = c.Text, .ctx = .{ .data = cText("* Unordered list") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}

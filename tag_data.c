@@ -68,7 +68,7 @@ TagData_dealloc(memory_arena_t *a, TagData *self)
     if (self->pad_after_eq) {
         Textbuffer_dealloc(a, self->pad_after_eq);
     }
-    free(self);
+    arena_free(a, self);
 }
 
 /*
