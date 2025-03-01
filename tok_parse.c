@@ -38,7 +38,7 @@ SOFTWARE.
 #define MAX_ENTITY_SIZE 8
 
 typedef struct {
-    PyObject *title;
+    TokenList *title;
     int level;
 } HeadingData;
 
@@ -251,17 +251,12 @@ Tokenizer_parse_template_or_argument(memory_arena_t *a, Tokenizer *self)
         }
     }
     tokenlist = Tokenizer_pop(a, self);
-    if (!tokenlist) {
+    if (!tokenlist)
         return 1;
-    }
-    if (Tokenizer_emit_all(a, self, tokenlist)) {
-        Py_DECREF(tokenlist);
+    if (Tokenizer_emit_all(a, self, tokenlist))
         return 1;
-    }
-    Py_DECREF(tokenlist);
-    if (self->topstack->context & LC_FAIL_NEXT) {
+    if (self->topstack->context & LC_FAIL_NEXT)
         self->topstack->context ^= LC_FAIL_NEXT;
-    }
     return 0;
 }
 
@@ -271,7 +266,7 @@ Tokenizer_parse_template_or_argument(memory_arena_t *a, Tokenizer *self)
 static int
 Tokenizer_handle_template_param(memory_arena_t *a, Tokenizer *self)
 {
-    PyObject *stack;
+    // PyObject *stack;
 
     if (self->topstack->context & LC_TEMPLATE_NAME) {
         if (!(self->topstack->context & (LC_HAS_TEXT | LC_HAS_TEMPLATE))) {
@@ -283,15 +278,13 @@ Tokenizer_handle_template_param(memory_arena_t *a, Tokenizer *self)
         self->topstack->context ^= LC_TEMPLATE_PARAM_VALUE;
     }
     if (self->topstack->context & LC_TEMPLATE_PARAM_KEY) {
-        stack = Tokenizer_pop(a, self);
+        TokenList *stack = Tokenizer_pop(a, self);
         if (!stack) {
             return 1;
         }
         if (Tokenizer_emit_all(a, self, stack)) {
-            Py_DECREF(stack);
             return 1;
         }
-        Py_DECREF(stack);
     } else {
         self->topstack->context |= LC_TEMPLATE_PARAM_KEY;
     }
@@ -311,17 +304,12 @@ Tokenizer_handle_template_param(memory_arena_t *a, Tokenizer *self)
 static int
 Tokenizer_handle_template_param_value(memory_arena_t *a, Tokenizer *self)
 {
-    PyObject *stack;
-
-    stack = Tokenizer_pop(a, self);
+    TokenList *stack = Tokenizer_pop(a, self);
     if (!stack) {
         return 1;
     }
-    if (Tokenizer_emit_all(a, self, stack)) {
-        Py_DECREF(stack);
+    if (Tokenizer_emit_all(a, self, stack))
         return 1;
-    }
-    Py_DECREF(stack);
     self->topstack->context ^= LC_TEMPLATE_PARAM_KEY;
     self->topstack->context |= LC_TEMPLATE_PARAM_VALUE;
     TOKEN(tpeql, TemplateParamEquals)
@@ -337,26 +325,19 @@ Tokenizer_handle_template_param_value(memory_arena_t *a, Tokenizer *self)
 static TokenList *
 Tokenizer_handle_template_end(memory_arena_t *a, Tokenizer *self)
 {
-    PyObject *stack;
-
     if (self->topstack->context & LC_TEMPLATE_NAME) {
         if (!(self->topstack->context & (LC_HAS_TEXT | LC_HAS_TEMPLATE))) {
             return Tokenizer_fail_route(a, self);
         }
     } else if (self->topstack->context & LC_TEMPLATE_PARAM_KEY) {
-        stack = Tokenizer_pop(a, self);
-        if (!stack) {
+        TokenList *stack = Tokenizer_pop(a, self);
+        if (!stack)
             return NULL;
-        }
-        if (Tokenizer_emit_all(a, self, stack)) {
-            Py_DECREF(stack);
+        if (Tokenizer_emit_all(a, self, stack))
             return NULL;
-        }
-        Py_DECREF(stack);
     }
     self->head++;
-    stack = Tokenizer_pop(a, self);
-    return stack;
+    return Tokenizer_pop(a, self);
 }
 
 /*
@@ -393,42 +374,34 @@ static int
 Tokenizer_parse_wikilink(memory_arena_t *a, Tokenizer *self)
 {
     size_t reset;
-    PyObject *extlink, *wikilink, *kwargs;
+    // PyObject *extlink, *wikilink, *kwargs;
 
     reset = self->head + 1;
     self->head += 2;
     // If the wikilink looks like an external link, parse it as such:
-    extlink = Tokenizer_really_parse_external_link(a, self, 1, NULL);
+    TokenList *extlink = Tokenizer_really_parse_external_link(a, self, 1, NULL);
     if (BAD_ROUTE) {
         RESET_ROUTE();
         self->head = reset + 1;
         // Otherwise, actually parse it as a wikilink:
-        wikilink = Tokenizer_parse(a, self, LC_WIKILINK_TITLE, 1);
+        TokenList *wikilink = Tokenizer_parse(a, self, LC_WIKILINK_TITLE, 1);
         if (BAD_ROUTE) {
             RESET_ROUTE();
             self->head = reset;
-            if (Tokenizer_emit_text(a, self, "[[")) {
-                return -1;
-            }
+            if (Tokenizer_emit_text(a, self, "[["))
+                return 1;
             return 0;
         }
-        if (!wikilink) {
-            return -1;
-        }
+        if (!wikilink)
+            return 1;
         TOKEN(wikiopen, WikilinkOpen)
-        if (Tokenizer_emit(a, self, &wikiopen)) {
-            Py_DECREF(wikilink);
-            return -1;
-        }
-        if (Tokenizer_emit_all(a, self, wikilink)) {
-            Py_DECREF(wikilink);
-            return -1;
-        }
-        Py_DECREF(wikilink);
+        if (Tokenizer_emit(a, self, &wikiopen))
+            return 1;
+        if (Tokenizer_emit_all(a, self, wikilink))
+            return 1;
         TOKEN(wikiclose, WikilinkClose)
-        if (Tokenizer_emit(a, self, &wikiclose)) {
-            return -1;
-        }
+        if (Tokenizer_emit(a, self, &wikiclose))
+            return 1;
         return 0;
     }
     if (!extlink) {
@@ -437,17 +410,13 @@ Tokenizer_parse_wikilink(memory_arena_t *a, Tokenizer *self)
     if (self->topstack->context & LC_EXT_LINK_TITLE) {
         // In this exceptional case, an external link that looks like a
         // wikilink inside of an external link is parsed as text:
-        Py_DECREF(extlink);
         self->head = reset;
-        if (Tokenizer_emit_text(a, self, "[[")) {
-            return -1;
-        }
+        if (Tokenizer_emit_text(a, self, "[["))
+            return 1;
         return 0;
     }
-    if (Tokenizer_emit_text(a, self, "[")) {
-        Py_DECREF(extlink);
-        return -1;
-    }
+    if (Tokenizer_emit_text(a, self, "["))
+        return 1;
 
     TOKEN_CTX(el_brackets, ExternalLinkOpen)
     el_brackets.ctx.external_link_open.brackets = true;
@@ -522,7 +491,7 @@ Tokenizer_parse_bracketed_uri_scheme(memory_arena_t *a, Tokenizer *self)
                 if (!valid[i]) {
                     goto end_of_loop;
                 }
-                if (this == (Py_UCS4) valid[i]) {
+                if (this == valid[i]) {
                     break;
                 }
                 i++;
@@ -769,7 +738,7 @@ Tokenizer_really_parse_external_link(memory_arena_t *a,
     Remove the URI scheme of a new external link from the textbuffer.
 */
 static int
-Tokenizer_remove_uri_scheme_from_textbuffer(Tokenizer *self, PyObject *link)
+Tokenizer_remove_uri_scheme_from_textbuffer(Tokenizer *self, void *link)
 {
     puts("remove uri scheme from textbuffer not impl");
     exit(1);
@@ -835,8 +804,7 @@ Tokenizer_parse_external_link(memory_arena_t *a, Tokenizer *self, int brackets)
     if (!brackets) {
         if (Tokenizer_remove_uri_scheme_from_textbuffer(self, link)) {
             Textbuffer_dealloc(a, extra);
-            Py_DECREF(link);
-            return -1;
+            return 1;
         }
     }
 
@@ -990,7 +958,6 @@ Tokenizer_handle_heading_end(memory_arena_t *a, Tokenizer *self)
             arena_free(a, after);
             return NULL;
         }
-        Py_DECREF(after->title);
         level = after->level;
         arena_free(a, after);
     }
@@ -999,10 +966,8 @@ Tokenizer_handle_heading_end(memory_arena_t *a, Tokenizer *self)
         return NULL;
     }
     heading = arena_alloc(a, sizeof(HeadingData));
-    if (!heading) {
-        PyErr_NoMemory();
+    if (!heading)
         return NULL;
-    }
     heading->title = stack;
     heading->level = level;
     return heading;
@@ -1014,10 +979,7 @@ Tokenizer_handle_heading_end(memory_arena_t *a, Tokenizer *self)
 static int
 Tokenizer_really_parse_entity(memory_arena_t *a, Tokenizer *self)
 {
-    // puts("TRACE: enter Tokenizer_really_parse_entity");
-    PyObject *kwargs, *charobj, *textobj;
-    int numeric, hexadecimal, i, j, zeroes, test;
-    char *valid, *text, *buffer, *def;
+    int numeric, hexadecimal = 0;
 
 #define FAIL_ROUTE_AND_EXIT()                                                          \
     do {                                                                               \
@@ -1039,9 +1001,8 @@ Tokenizer_really_parse_entity(memory_arena_t *a, Tokenizer *self)
     if (this == '#') {
         numeric = 1;
         TOKEN(he_num, HTMLEntityNumeric)
-        if (Tokenizer_emit(a, self, &he_num)) {
+        if (Tokenizer_emit(a, self, &he_num))
             return 1;
-        }
         self->head++;
         this = Tokenizer_read(self, 0);
         if (!this) {
@@ -1051,9 +1012,8 @@ Tokenizer_really_parse_entity(memory_arena_t *a, Tokenizer *self)
         if (this == 'x' || this == 'X') {
             hexadecimal = 1;
             TOKEN(he_hex, HTMLEntityHex)
-            if (Tokenizer_emit(a, self, &he_hex)) {
-                return -1;
-            }
+            if (Tokenizer_emit(a, self, &he_hex))
+                return 1;
             self->head++;
         } else {
             hexadecimal = 0;
@@ -1061,6 +1021,7 @@ Tokenizer_really_parse_entity(memory_arena_t *a, Tokenizer *self)
     } else {
         numeric = hexadecimal = 0;
     }
+    const char *valid;
     if (hexadecimal) {
         valid = HEXDIGITS;
     } else if (numeric) {
@@ -1068,12 +1029,11 @@ Tokenizer_really_parse_entity(memory_arena_t *a, Tokenizer *self)
     } else {
         valid = ALPHANUM;
     }
-    text = arena_calloc(a, MAX_ENTITY_SIZE, sizeof(char));
-    if (!text) {
+    char *text = arena_calloc(a, MAX_ENTITY_SIZE, sizeof(char));
+    if (!text)
         return 1;
-    }
-    i = 0;
-    zeroes = 0;
+    int i = 0;
+    int zeroes = 0;
     while (1) {
         this = Tokenizer_read(self, 0);
         if (this == ';') {
@@ -1093,7 +1053,7 @@ Tokenizer_really_parse_entity(memory_arena_t *a, Tokenizer *self)
         if (is_marker(this)) {
             FAIL_ROUTE_AND_EXIT();
         }
-        j = 0;
+        int j = 0;
         while (1) {
             if (!valid[j]) {
                 FAIL_ROUTE_AND_EXIT();
@@ -1108,18 +1068,21 @@ Tokenizer_really_parse_entity(memory_arena_t *a, Tokenizer *self)
         i++;
     }
     if (numeric) {
+        int test;
         sscanf(text, (hexadecimal ? "%x" : "%d"), &test);
         if (test < 1 || test > 0x10FFFF) {
             FAIL_ROUTE_AND_EXIT();
         }
     }
+
+    // TODO: Place all possible into a comptime hash table;
     // For now, char entities are assumed to be valid.
 
     if (zeroes) {
-        buffer = arena_calloc(a, strlen(text) + zeroes + 1, sizeof(char));
+        char *buffer = arena_calloc(a, strlen(text) + zeroes + 1, sizeof(char));
         if (!buffer) {
             arena_free(a, text);
-            return -1;
+            return 1;
         }
         for (i = 0; i < zeroes; i++) {
             strcat(buffer, "0");
@@ -1130,13 +1093,11 @@ Tokenizer_really_parse_entity(memory_arena_t *a, Tokenizer *self)
     }
     TOKEN_CTX(txt_tok, Text)
     txt_tok.ctx.data = text;
-    if (Tokenizer_emit(a, self, &txt_tok)) {
-        return -1;
-    }
+    if (Tokenizer_emit(a, self, &txt_tok))
+        return 1;
     TOKEN(hte_end, HTMLEntityEnd);
-    if (Tokenizer_emit(a, self, &hte_end)) {
-        return -1;
-    }
+    if (Tokenizer_emit(a, self, &hte_end))
+        return 1;
     return 0;
 }
 
@@ -1172,11 +1133,8 @@ Tokenizer_parse_entity(memory_arena_t *a, Tokenizer *self)
     assert(tokenlist);
     // printf("TRACE: head: %zu, TokenList.len: %zu\n", self->head,
     // tokenlist->len);
-    if (Tokenizer_emit_all(a, self, tokenlist)) {
-        Py_DECREF(tokenlist);
-        return -1;
-    }
-    Py_DECREF(tokenlist);
+    if (Tokenizer_emit_all(a, self, tokenlist))
+        return 1;
     return 0;
 }
 
@@ -1329,7 +1287,7 @@ Tokenizer_handle_tag_space(memory_arena_t *a, Tokenizer *self, TagData *data, ch
 static int
 Tokenizer_handle_tag_text(memory_arena_t *a, Tokenizer *self, char text)
 {
-    Py_UCS4 next = Tokenizer_read(self, 1);
+    char next = Tokenizer_read(self, 1);
 
     if (!is_marker(text) || !Tokenizer_CAN_RECURSE(self)) {
         return Tokenizer_emit_char(a, self, text);
@@ -1349,11 +1307,8 @@ Tokenizer_handle_tag_text(memory_arena_t *a, Tokenizer *self, char text)
 static int
 Tokenizer_handle_tag_data(memory_arena_t *a, Tokenizer *self, TagData *data, char chunk)
 {
-    PyObject *trash;
-    int first_time, escaped;
-
     if (data->context & TAG_NAME) {
-        first_time = !(data->context & TAG_NOTE_SPACE);
+        int first_time = !(data->context & TAG_NOTE_SPACE);
         if (is_marker(chunk) || (isspace(chunk) && first_time)) {
             // Tags must start with text, not spaces
             Tokenizer_fail_route(a, self);
@@ -1370,8 +1325,7 @@ Tokenizer_handle_tag_data(memory_arena_t *a, Tokenizer *self, TagData *data, cha
         if (data->context & TAG_QUOTED) {
             data->context = TAG_ATTR_VALUE;
             Tokenizer_memoize_bad_route(a, self);
-            trash = Tokenizer_pop(a, self);
-            Py_XDECREF(trash);
+            Tokenizer_pop(a, self);
             self->head = data->reset - 1; // Will be auto-incremented
         } else {
             Tokenizer_fail_route(a, self);
@@ -1401,8 +1355,8 @@ Tokenizer_handle_tag_data(memory_arena_t *a, Tokenizer *self, TagData *data, cha
             }
         }
     } else { // data->context & TAG_ATTR_VALUE assured
-        escaped = (Tokenizer_read_backwards(self, 1) == '\\' &&
-                   Tokenizer_read_backwards(self, 2) != '\\');
+        int escaped = (Tokenizer_read_backwards(self, 1) == '\\' &&
+                       Tokenizer_read_backwards(self, 2) != '\\');
         if (data->context & TAG_NOTE_QUOTE) {
             data->context ^= TAG_NOTE_QUOTE;
             if ((chunk == '"' || chunk == '\'') && !escaped) {
@@ -1472,7 +1426,7 @@ Tokenizer_handle_tag_open_close(memory_arena_t *a, Tokenizer *self)
 /*
     Handle the ending of a closing tag (</foo>).
 */
-static PyObject *
+static void *
 Tokenizer_handle_tag_close_close(Tokenizer *self)
 {
     puts("Tokenizer_handle_tag_close_close not implemented");
@@ -1614,7 +1568,7 @@ Tokenizer_handle_blacklisted_tag(memory_arena_t *a, Tokenizer *self)
 /*
     Handle the end of an implicitly closing single-only HTML tag.
 */
-static PyObject *
+static void *
 Tokenizer_handle_single_only_tag_end(Tokenizer *self)
 {
     puts("Tokenizer_handle_single_only_tag_end not implemented");
@@ -1842,11 +1796,8 @@ Tokenizer_handle_invalid_tag_start(memory_arena_t *a, Tokenizer *self)
     // if (PyObject_SetAttrString(PyList_GET_ITEM(tag, 0), "invalid", Py_True)) {
     //     return -1;
     // }
-    if (Tokenizer_emit_all(a, self, tag)) {
-        Py_DECREF(tag);
-        return -1;
-    }
-    Py_DECREF(tag);
+    if (Tokenizer_emit_all(a, self, tag))
+        return 1;
     return 0;
 }
 
@@ -1856,24 +1807,19 @@ Tokenizer_handle_invalid_tag_start(memory_arena_t *a, Tokenizer *self)
 static int
 Tokenizer_parse_tag(memory_arena_t *a, Tokenizer *self)
 {
-    Py_ssize_t reset = self->head;
-    PyObject *tag;
+    size_t reset = self->head;
 
     self->head++;
-    tag = Tokenizer_really_parse_tag(a, self);
+    TokenList *tag = Tokenizer_really_parse_tag(a, self);
     if (BAD_ROUTE) {
         RESET_ROUTE();
         self->head = reset;
         return Tokenizer_emit_char(a, self, '<');
     }
-    if (!tag) {
-        return -1;
-    }
-    if (Tokenizer_emit_all(a, self, tag)) {
-        Py_DECREF(tag);
-        return -1;
-    }
-    Py_DECREF(tag);
+    if (!tag)
+        return 1;
+    if (Tokenizer_emit_all(a, self, tag))
+        return 1;
     return 0;
 }
 
@@ -2242,7 +2188,7 @@ Tokenizer_handle_list_marker(memory_arena_t *a, Tokenizer *self)
 static int
 Tokenizer_handle_list(memory_arena_t *a, Tokenizer *self)
 {
-    Py_UCS4 marker = Tokenizer_read(self, 1);
+    char marker = Tokenizer_read(self, 1);
 
     if (Tokenizer_handle_list_marker(a, self)) {
         return -1;
@@ -2307,10 +2253,10 @@ static int
 Tokenizer_emit_table_tag(Tokenizer *self,
                          const char *open_open_markup,
                          const char *tag,
-                         PyObject *style,
-                         PyObject *padding,
+                         void *style,
+                         void *padding,
                          const char *close_open_markup,
-                         PyObject *contents,
+                         void *contents,
                          const char *open_close_markup)
 {
     puts("emit table tag not implemented");
@@ -2396,19 +2342,16 @@ Tokenizer_emit_table_tag(Tokenizer *self,
     // return 0;
 
 fail_decref_all:
-    Py_XDECREF(style);
 fail_decref_padding_contents:
-    Py_DECREF(padding);
 fail_decref_contents:
-    Py_DECREF(contents);
-    return -1;
+    return 1;
 }
 
 /*
     Handle style attributes for a table until an ending token.
 */
 static TokenList *
-Tokenizer_handle_table_style(Tokenizer *self, Py_UCS4 end_token)
+Tokenizer_handle_table_style(Tokenizer *self, char end_token)
 {
     puts("handle table style not impl");
     exit(1);
@@ -2475,9 +2418,9 @@ Tokenizer_handle_table_style(Tokenizer *self, Py_UCS4 end_token)
 static int
 Tokenizer_parse_table(memory_arena_t *a, Tokenizer *self)
 {
-    Py_ssize_t reset = self->head;
-    PyObject *style, *padding, *trash;
-    PyObject *table = NULL;
+    size_t reset = self->head;
+    void *style, *padding, *trash;
+    void *table = NULL;
     StackIdent restore_point;
     self->head += 2;
 
@@ -2502,21 +2445,21 @@ Tokenizer_parse_table(memory_arena_t *a, Tokenizer *self)
     }
     style = Tokenizer_pop(a, self);
     if (!style) {
-        Py_DECREF(padding);
+        // Py_DECREF(padding);
         return -1;
     }
 
     self->head++;
     restore_point = self->topstack->ident;
-    table = Tokenizer_parse(a, self, LC_TABLE_OPEN, 1);
+    // table = Tokenizer_parse(a, self, LC_TABLE_OPEN, 1);
     if (BAD_ROUTE) {
         RESET_ROUTE();
-        Py_DECREF(padding);
-        Py_DECREF(style);
+        // Py_DECREF(padding);
+        // Py_DECREF(style);
         while (!Tokenizer_IS_CURRENT_STACK(self, restore_point)) {
             Tokenizer_memoize_bad_route(a, self);
             trash = Tokenizer_pop(a, self);
-            Py_XDECREF(trash);
+            // Py_XDECREF(trash);
         }
         self->head = reset;
         if (Tokenizer_emit_char(a, self, '{')) {
@@ -2525,8 +2468,8 @@ Tokenizer_parse_table(memory_arena_t *a, Tokenizer *self)
         return 0;
     }
     if (!table) {
-        Py_DECREF(padding);
-        Py_DECREF(style);
+        // Py_DECREF(padding);
+        // Py_DECREF(style);
         return -1;
     }
 
@@ -2545,7 +2488,7 @@ Tokenizer_parse_table(memory_arena_t *a, Tokenizer *self)
 static int
 Tokenizer_handle_table_row(memory_arena_t *a, Tokenizer *self)
 {
-    PyObject *padding, *style, *row;
+    void *padding, *style, *row;
     self->head += 2;
 
     if (!Tokenizer_CAN_RECURSE(self)) {
@@ -2571,7 +2514,7 @@ Tokenizer_handle_table_row(memory_arena_t *a, Tokenizer *self)
     }
     style = Tokenizer_pop(a, self);
     if (!style) {
-        Py_DECREF(padding);
+        // Py_DECREF(padding);
         return -1;
     }
 
@@ -2579,8 +2522,8 @@ Tokenizer_handle_table_row(memory_arena_t *a, Tokenizer *self)
     self->head++;
     row = Tokenizer_parse(a, self, LC_TABLE_OPEN | LC_TABLE_ROW_OPEN, 1);
     if (!row) {
-        Py_DECREF(padding);
-        Py_DECREF(style);
+        // Py_DECREF(padding);
+        // Py_DECREF(style);
         return -1;
     }
 
@@ -2761,7 +2704,7 @@ Tokenizer_handle_end(memory_arena_t *a, Tokenizer *self, uint64_t context)
     everything is safe, or -1 if the route must be failed.
 */
 static int
-Tokenizer_verify_safe(Tokenizer *self, uint64_t context, Py_UCS4 data)
+Tokenizer_verify_safe(Tokenizer *self, uint64_t context, char data)
 {
     if (context & LC_FAIL_NEXT) {
         return -1;
@@ -2852,7 +2795,7 @@ static int
 Tokenizer_has_leading_whitespace(Tokenizer *self)
 {
     int offset = 1;
-    Py_UCS4 current_character;
+    char current_character;
     while (1) {
         current_character = Tokenizer_read_backwards(self, offset);
         if (!current_character || current_character == '\n') {
@@ -2874,7 +2817,7 @@ Tokenizer_parse(memory_arena_t *a, Tokenizer *self, uint64_t context, int push)
     assert(a->capacity > 0);
     uint64_t this_context;
     char this, next, next_next, last;
-    PyObject *temp;
+    void *temp;
 
     if (push) {
         if (Tokenizer_check_route(self, context) < 0) {
@@ -2979,7 +2922,7 @@ Tokenizer_parse(memory_arena_t *a, Tokenizer *self, uint64_t context, int push)
                 return NULL;
             }
         } else if (this == '=' && this_context & LC_HEADING) {
-            return (PyObject *) Tokenizer_handle_heading_end(a, self);
+            return (void *) Tokenizer_handle_heading_end(a, self);
         } else if (this == '\n' && this_context & LC_HEADING) {
             return Tokenizer_fail_route(a, self);
         } else if (this == '&') {

@@ -22,7 +22,6 @@ SOFTWARE.
 
 #pragma once
 
-#include "Python.h"
 #include "avl_tree.h"
 #include "definitions.h"
 #include "tokens.h"
@@ -52,9 +51,6 @@ SOFTWARE.
 /* Shared globals */
 
 extern char** entitydefs;
-
-extern PyObject* NOARGS;
-extern PyObject* definitions;
 
 /* Structs */
 

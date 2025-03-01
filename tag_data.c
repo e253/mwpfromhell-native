@@ -38,10 +38,8 @@ TagData_new(memory_arena_t *a, TokenizerInput *text)
     }
 
     TagData *self = arena_alloc(a, sizeof(TagData));
-    if (!self) {
-        PyErr_NoMemory();
+    if (!self)
         return NULL;
-    }
     self->context = TAG_NAME;
     ALLOC_BUFFER(self->pad_first)
     ALLOC_BUFFER(self->pad_before_eq)

@@ -255,36 +255,6 @@ Tokenizer_emit_token(memory_arena_t *a, Tokenizer *self, Token *token, int first
 }
 
 /*
-    Write a token to the current token stack, with kwargs. Steals a reference
-    to kwargs.
-*/
-int
-Tokenizer_emit_token_kwargs(Tokenizer *self, Token *token, PyObject *kwargs, int first)
-{
-    BOMB_PY_METHOD(Tokenizer_emit_token_kwargs)
-    // PyObject *instance;
-
-    // if (Tokenizer_push_textbuffer(self)) {
-    //     Py_DECREF(kwargs);
-    //     return -1;
-    // }
-    // instance = PyObject_Call(token, NOARGS, kwargs);
-    // if (!instance) {
-    //     Py_DECREF(kwargs);
-    //     return -1;
-    // }
-    // if (first ? PyList_Insert(self->topstack->stack, 0, instance)
-    //           : PyList_Append(self->topstack->stack, instance)) {
-    //     Py_DECREF(instance);
-    //     Py_DECREF(kwargs);
-    //     return -1;
-    // }
-    // Py_DECREF(instance);
-    // Py_DECREF(kwargs);
-    // return 0;
-}
-
-/*
     Write a Unicode codepoint to the current textbuffer.
 */
 int
