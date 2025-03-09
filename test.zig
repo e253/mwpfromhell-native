@@ -2204,3 +2204,610 @@ test "a nowiki tag before a list causes it to not be parsed" {
 
     try expectTokensEql(&expected, actual);
 }
+
+// name:   blank
+// label:  wikilink with no content
+// input:  "[[]]"
+// output: [WikilinkOpen(), WikilinkClose()]
+test "wikilink with no content" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.WikilinkClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   blank_with_text
+// label:  wikilink with no content but a pipe
+// input:  "[[|]]"
+// output: [WikilinkOpen(), WikilinkSeparator(), WikilinkClose()]
+test "wikilink with no content but a pipe" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[|]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.WikilinkSeparator },
+        .{ .type = c.WikilinkClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   basic
+// label:  simplest type of wikilink
+// input:  "[[wikilink]]"
+// output: [WikilinkOpen(), Text(text="wikilink"), WikilinkClose()]
+test "simplest type of wikilink" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[wikilink]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("wikilink") } },
+        .{ .type = c.WikilinkClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   with_text
+// label:  wikilink with a text value
+// input:  "[[foo|bar]]"
+// output: [WikilinkOpen(), Text(text="foo"), WikilinkSeparator(), Text(text="bar"), WikilinkClose()]
+test "wikilink with a text value" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo|bar]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo") } },
+        .{ .type = c.WikilinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar") } },
+        .{ .type = c.WikilinkClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   blank_with_multiple_texts
+// label:  no content, multiple pipes
+// input:  "[[|||]]"
+// output: [WikilinkOpen(), WikilinkSeparator(), Text(text="||"), WikilinkClose()]
+test "no content, multiple pipes" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[|||]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.WikilinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("||") } },
+        .{ .type = c.WikilinkClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   multiple_texts
+// label:  multiple text values separated by pipes
+// input:  "[[foo|bar|baz]]"
+// output: [WikilinkOpen(), Text(text="foo"), WikilinkSeparator(), Text(text="bar|baz"), WikilinkClose()]
+test "multiple text values separated by pipes" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo|bar|baz]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo") } },
+        .{ .type = c.WikilinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar|baz") } },
+        .{ .type = c.WikilinkClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   newline_text
+// label:  a newline in the middle of the text
+// input:  "[[foo|foo\nbar]]"
+// output: [WikilinkOpen(), Text(text="foo"), WikilinkSeparator(), Text(text="foo\nbar"), WikilinkClose()]
+test "a newline in the middle of the text" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo|foo\nbar]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo") } },
+        .{ .type = c.WikilinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo\nbar") } },
+        .{ .type = c.WikilinkClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   bracket_text
+// label:  a left bracket in the middle of the text
+// input:  "[[foo|bar[baz]]"
+// output: [WikilinkOpen(), Text(text="foo"), WikilinkSeparator(), Text(text="bar[baz"), WikilinkClose()]
+test "a left bracket in the middle of the text" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo|bar[baz]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo") } },
+        .{ .type = c.WikilinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar[baz") } },
+        .{ .type = c.WikilinkClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   nested
+// label:  a wikilink nested within another
+// input:  "[[file:foo|[[bar]]]]"
+// output: [WikilinkOpen(), Text(text="file:foo"), WikilinkSeparator(), WikilinkOpen(), Text(text="bar"), WikilinkClose(), WikilinkClose()]
+
+// name:   nested_padding
+// label:  a wikilink nested within another, separated by other data
+// input:  "[[file:foo|a[[b]]c]]"
+// output: [WikilinkOpen(), Text(text="file:foo"), WikilinkSeparator(), Text(text="a"), WikilinkOpen(), Text(text="b"), WikilinkClose(), Text(text="c"), WikilinkClose()]
+
+// name:   invalid_newline
+// label:  invalid wikilink: newline as only content
+// input:  "[[\n]]"
+// output: [Text(text="[[\n]]")]
+test "invalid wikilink: newline as only content" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[\n]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[\n]]") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   invalid_right_brace
+// label:  invalid wikilink: right brace
+// input:  "[[foo}b}a}r]]"
+// output: [Text(text="[[foo}b}a}r]]")]
+test "invalid wikilink: right brace" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo}b}a}r]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[foo}b}a}r]]") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   invalid_left_brace
+// label:  invalid wikilink: left brace
+// input:  "[[foo{{[a}}]]"
+// output: [Text(text="[[foo{{[a}}]]")]
+test "invalid wikilink: left brace" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo{{[a}}]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[foo{{[a}}]]") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   empty_string
+// label:  empty string as input
+// input:  "[[]]"
+// output: [WikilinkOpen(), WikilinkClose()]
+test "empty string" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.WikilinkClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   single_brace
+// label:  wikilink with only left brace
+// input:  "[["
+// output: [Text(text="[[")]
+test "wikilink with only left brace" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   single_brace2
+// label:  wikilink with only right brace
+// input:  "[]]"
+// output: [Text(text="[[]]")]
+test "wikilink with only right brace" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[]]") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   invalid_right_bracket
+// label:  invalid wikilink: right bracket
+// input:  "[[foo]bar]]"
+// output: [Text(text="[[foo]bar]]")]
+test "invalid wikilink: right bracket" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo]bar]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[foo]bar]]") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   invalid_left_bracket
+// label:  invalid wikilink: left bracket
+// input:  "[[foo[bar]]"
+// output: [Text(text="[[foo[bar]]")]
+test "invalid wikilink: left bracket" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo[bar]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[foo[bar]]") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   invalid_nested_title
+// label:  invalid wikilink: nested within the title of another
+// input:  "[[foo[[bar]]]]"
+// output: [Text(text="[[foo"), WikilinkOpen(), Text(text="bar"), WikilinkClose(), Text(text="]]")]
+test "invalid wikilink: nested within the title of another" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo[[bar]]]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[foo") } },
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar") } },
+        .{ .type = c.WikilinkClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText("]]") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   invalid_nested_title_and_text
+// label:  invalid wikilink: nested within the title of another, with a text param
+// input:  "[[foo[[bar]]|baz]]"
+// output: [Text(text="[[foo"), WikilinkOpen(), Text(text="bar"), WikilinkClose(), Text(text="|baz]]")]
+test "invalid wikilink: nested within the title of another, with a text param" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo[[bar]]|baz]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[foo") } },
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar") } },
+        .{ .type = c.WikilinkClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText("|baz]]") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   invalid_nested_no_close
+// label:  invalid wikilink: a wikilink nested within the value of another, missing a pair of closing brackets
+// input:  "[[foo|[[bar]]"
+// output: [Text(text="[[foo|"), WikilinkOpen(), Text(text="bar"), WikilinkClose()]
+test "invalid wikilink: a wikilink nested within the value of another, missing a pair of closing brackets" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo|[[bar]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[foo|") } },
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar") } },
+        .{ .type = c.WikilinkClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   invalid_left_angle_bracket
+// label:  invalid wikilink: left angle bracket
+// input:  "[[foo<bar]]"
+// output: [Text(text="[[foo<bar]]")]
+test "invalid wikilink: left angle bracket" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo<bar]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[foo<bar]]") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   invalid_right_angle_bracket
+// label:  invalid wikilink: right angle bracket
+// input:  "[[foo>bar]]"
+// output: [Text(text="[[foo>bar]]")]
+test "invalid wikilink: right angle bracket" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo>bar]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[foo>bar]]") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   invalid_newline_at_start
+// label:  invalid wikilink: newline at start of title
+// input:  "[[\nfoobar]]"
+// output: [Text(text="[[\nfoobar]]")]
+test "invalid wikilink: newline at start of title" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[\nfoobar]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[\nfoobar]]") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   invalid_newline_at_end
+// label:  invalid wikilink: newline at end of title
+// input:  "[[foobar\n]]"
+// output: [Text(text="[[foobar\n]]")]
+test "invalid wikilink: newline at end of title" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foobar\n]]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[foobar\n]]") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   incomplete_open_only
+// label:  incomplete wikilinks: just an open
+// input:  "[["
+// output: [Text(text="[[")]
+test "incomplete wikilinks: just an open" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   incomplete_open_text
+// label:  incomplete wikilinks: an open with some text
+// input:  "[[foo"
+// output: [Text(text="[[foo")]
+test "incomplete wikilinks: an open with some text" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[foo") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   incomplete_open_text_pipe
+// label:  incomplete wikilinks: an open, text, then a pipe
+// input:  "[[foo|"
+// output: [Text(text="[[foo|")]
+test "incomplete wikilinks: an open, text, then a pipe" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo|");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[foo|") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   incomplete_open_pipe
+// label:  incomplete wikilinks: an open, then a pipe
+// input:  "[[|"
+// output: [Text(text="[[|")]
+test "incomplete wikilinks: an open, then a pipe" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[|");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[|") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   incomplete_open_pipe_text
+// label:  incomplete wikilinks: an open, then a pipe, then text
+// input:  "[[|foo"
+// output: [Text(text="[[|foo")]
+test "incomplete wikilinks: an open, then a pipe, then text" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[|foo");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[|foo") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   incomplete_open_pipes_text
+// label:  incomplete wikilinks: a pipe, then text then two pipes
+// input:  "[[|f||"
+// output: [Text(text="[[|f||")]
+test "incomplete wikilinks: a pipe, then text then two pipes" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[|f||");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[|f||") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   incomplete_open_partial_close
+// label:  incomplete wikilinks: an open, then one right brace
+// input:  "[[{}"
+// output: [Text(text="[[{}")]
+test "incomplete wikilinks: an open, then one right brace" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[{}");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("[[{}") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   incomplete_preserve_previous
+// label:  incomplete wikilinks: a valid wikilink followed by an invalid one
+// input:  "[[foo]] [[bar"
+// output: [WikilinkOpen(), Text(text="foo"), WikilinkClose(), Text(text=" [[bar")]
+test "incomplete wikilinks: a valid wikilink followed by an invalid one" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[[foo]] [[bar");
+
+    const expected = [_]c.Token{
+        .{ .type = c.WikilinkOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo") } },
+        .{ .type = c.WikilinkClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" [[bar") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
