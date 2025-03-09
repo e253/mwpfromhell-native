@@ -2811,3 +2811,441 @@ test "incomplete wikilinks: a valid wikilink followed by an invalid one" {
 
     try expectTokensEql(&expected, actual);
 }
+
+// name:   blank
+// label:  argument with no content
+// input:  "{{{}}}"
+// output: [ArgumentOpen(), ArgumentClose()]
+test "argument with no content" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "{{{}}}");
+
+    const expected = [_]c.Token{
+        .{ .type = c.ArgumentOpen },
+        .{ .type = c.ArgumentClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   blank_with_default
+// label:  argument with no content but a pipe
+// input:  "{{{|}}}"
+// output: [ArgumentOpen(), ArgumentSeparator(), ArgumentClose()]
+test "argument with no content but a pipe" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "{{{|}}}");
+
+    const expected = [_]c.Token{
+        .{ .type = c.ArgumentOpen },
+        .{ .type = c.ArgumentSeparator },
+        .{ .type = c.ArgumentClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   basic
+// label:  simplest type of argument
+// input:  "{{{argument}}}"
+// output: [ArgumentOpen(), Text(text="argument"), ArgumentClose()]
+test "simplest type of argument" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "{{{argument}}}");
+
+    const expected = [_]c.Token{
+        .{ .type = c.ArgumentOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("argument") } },
+        .{ .type = c.ArgumentClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   default
+// label:  argument with a default value
+// input:  "{{{foo|bar}}}"
+// output: [ArgumentOpen(), Text(text="foo"), ArgumentSeparator(), Text(text="bar"), ArgumentClose()]
+test "argument with a default value" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "{{{foo|bar}}}");
+
+    const expected = [_]c.Token{
+        .{ .type = c.ArgumentOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo") } },
+        .{ .type = c.ArgumentSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar") } },
+        .{ .type = c.ArgumentClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   blank_with_multiple_defaults
+// label:  no content, multiple pipes
+// input:  "{{{|||}}}"
+// output: [ArgumentOpen(), ArgumentSeparator(), Text(text="||"), ArgumentClose()]
+//
+// ---
+//
+// name:   multiple_defaults
+// label:  multiple values separated by pipes
+// input:  "{{{foo|bar|baz}}}"
+// output: [ArgumentOpen(), Text(text="foo"), ArgumentSeparator(), Text(text="bar|baz"), ArgumentClose()]
+//
+// ---
+//
+// name:   newline
+// label:  newline as only content
+// input:  "{{{\n}}}"
+// output: [ArgumentOpen(), Text(text="\n"), ArgumentClose()]
+//
+// ---
+//
+// name:   right_braces
+// label:  multiple } scattered throughout text
+// input:  "{{{foo}b}a}r}}}"
+// output: [ArgumentOpen(), Text(text="foo}b}a}r"), ArgumentClose()]
+//
+// ---
+//
+// name:   right_braces_default
+// label:  multiple } scattered throughout text, with a default value
+// input:  "{{{foo}b}|}a}r}}}"
+// output: [ArgumentOpen(), Text(text="foo}b}"), ArgumentSeparator(), Text(text="}a}r"), ArgumentClose()]
+//
+// ---
+//
+// name:   nested
+// label:  an argument nested within another argument
+// input:  "{{{{{{foo}}}|{{{bar}}}}}}"
+// output: [ArgumentOpen(), ArgumentOpen(), Text(text="foo"), ArgumentClose(), ArgumentSeparator(), ArgumentOpen(), Text(text="bar"), ArgumentClose(), ArgumentClose()]
+//
+// ---
+//
+// name:   invalid_braces
+// label:  invalid argument: multiple braces that are not part of a template or argument
+// input:  "{{{foo{{[a}}}}}"
+// output: [Text(text="{{{foo{{[a}}}}}")]
+//
+// ---
+//
+
+// name:   blank_with_multiple_defaults
+// label:  no content, multiple pipes
+// input:  "{{{|||}}}"
+// output: [ArgumentOpen(), ArgumentSeparator(), ArgumentSeparator(), ArgumentSeparator(), ArgumentClose()]
+test "(argument) no content, multiple pipes" {
+    // var a: Arena = std.mem.zeroes(Arena);
+    // try std.testing.expect(c.arena_init(&a) == 0);
+    // defer c.arena_clear(&a);
+
+    // const actual = tokenize_arena(&a, "{{{|||}}}");
+
+    // const expected = [_]c.Token{
+    //     .{ .type = c.ArgumentOpen },
+    //     .{ .type = c.ArgumentSeparator },
+    //     .{ .type = c.ArgumentSeparator },
+    //     .{ .type = c.ArgumentSeparator },
+    //     .{ .type = c.ArgumentClose },
+    // };
+
+    // try expectTokensEql(&expected, actual);
+    // ArgumentOpen, ArgumentSeparator, Text("||"), ArgumentClose
+    return error.SkipZigTest;
+}
+
+// name:   multiple_defaults
+// label:  multiple values separated by pipes
+// input:  "{{{foo|bar|baz}}}"
+// output: [ArgumentOpen(), Text(text="foo"), ArgumentSeparator(), Text(text="bar"), ArgumentSeparator(), Text(text="baz"), ArgumentClose()]
+test "multiple values separated by pipes" {
+    // var a: Arena = std.mem.zeroes(Arena);
+    // try std.testing.expect(c.arena_init(&a) == 0);
+    // defer c.arena_clear(&a);
+
+    // const actual = tokenize_arena(&a, "{{{foo|bar|baz}}}");
+    // printTokens(actual);
+
+    // const expected = [_]c.Token{
+    //     .{ .type = c.ArgumentOpen },
+    //     .{ .type = c.Text, .ctx = .{ .data = cText("foo") } },
+    //     .{ .type = c.ArgumentSeparator },
+    //     .{ .type = c.Text, .ctx = .{ .data = cText("bar") } },
+    //     .{ .type = c.ArgumentSeparator },
+    //     .{ .type = c.Text, .ctx = .{ .data = cText("baz") } },
+    //     .{ .type = c.ArgumentClose },
+    // };
+
+    // try expectTokensEql(&expected, actual);
+    // ArgumentOpen, Text("foo"), ArgumentSeparator, Text("bar|baz"), ArgumentClose
+    return error.SkipZigTest;
+}
+
+// name:   newline
+// label:  newline as only content
+// input:  "{{{\n}}}"
+// output: [ArgumentOpen(), Text(text="\n"), ArgumentClose()]
+test "newline as only content" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "{{{\n}}}");
+
+    const expected = [_]c.Token{
+        .{ .type = c.ArgumentOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("\n") } },
+        .{ .type = c.ArgumentClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   right_braces
+// label:  multiple } scattered throughout text
+// input:  "{{{foo}b}a}r}}}"
+// output: [ArgumentOpen(), Text(text="foo}b}a}r"), ArgumentClose()]
+test "multiple } scattered throughout text" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "{{{foo}b}a}r}}}");
+
+    const expected = [_]c.Token{
+        .{ .type = c.ArgumentOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo}b}a}r") } },
+        .{ .type = c.ArgumentClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   right_braces_default
+// label:  multiple } scattered throughout text, with a default value
+// input:  "{{{foo}b}|}a}r}}}"
+// output: [ArgumentOpen(), Text(text="foo}b"), ArgumentSeparator(), Text(text="}a}r"), ArgumentClose()]
+test "multiple } scattered throughout text, with a default value" {
+    // var a: Arena = std.mem.zeroes(Arena);
+    // try std.testing.expect(c.arena_init(&a) == 0);
+    // defer c.arena_clear(&a);
+
+    // const actual = tokenize_arena(&a, "{{{foo}b}|}a}r}}}");
+    // printTokens(actual);
+
+    // const expected = [_]c.Token{
+    //     .{ .type = c.ArgumentOpen },
+    //     .{ .type = c.Text, .ctx = .{ .data = cText("foo}b") } },
+    //     .{ .type = c.ArgumentSeparator },
+    //     .{ .type = c.Text, .ctx = .{ .data = cText("}a}r") } },
+    //     .{ .type = c.ArgumentClose },
+    // };
+
+    // try expectTokensEql(&expected, actual);
+    // ArgumentOpen, Text("foo}b}"), ArgumentSeparator, Text("}a}r"), ArgumentClose
+    return error.SkipZigTest;
+}
+
+// name:   nested
+// label:  an argument nested within another argument
+// input:  "{{{{{{foo}}}|{{{bar}}}}}}"
+// output: [ArgumentOpen(), ArgumentOpen(), Text(text="foo"), ArgumentClose(), ArgumentSeparator(), ArgumentOpen(), Text(text="bar"), ArgumentClose(), ArgumentClose()]
+test "an argument nested within another argument" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "{{{{{{foo}}}|{{{bar}}}}}}");
+
+    const expected = [_]c.Token{
+        .{ .type = c.ArgumentOpen },
+        .{ .type = c.ArgumentOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo") } },
+        .{ .type = c.ArgumentClose },
+        .{ .type = c.ArgumentSeparator },
+        .{ .type = c.ArgumentOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("bar") } },
+        .{ .type = c.ArgumentClose },
+        .{ .type = c.ArgumentClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   invalid_braces
+// label:  invalid argument: multiple braces that are not part of a template or argument
+// input:  "{{{foo{{[a}}}}}"
+// output: [Text(text="{{{foo{{[a}}}}}")]
+test "invalid argument: multiple braces that are not part of a template or argument" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "{{{foo{{[a}}}}}");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("{{{foo{{[a}}}}}") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   incomplete_open_only
+// label:  incomplete arguments: just an open
+// input:  "{{{"
+// output: [Text(text="{{{")]
+test "incomplete arguments: just an open" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "{{{");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("{{{") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   incomplete_open_text
+// label:  incomplete arguments: an open with some text
+// input:  "{{{foo"
+// output: [Text(text="{{{foo")]
+test "incomplete arguments: an open with some text" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "{{{foo");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("{{{foo") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   incomplete_open_text_pipe
+// label:  incomplete arguments: an open, text, then a pipe
+// input:  "{{{foo|"
+// output: [Text(text="{{{foo|")]
+test "incomplete arguments: an open, text, then a pipe" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "{{{foo|");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("{{{foo|") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   incomplete_open_pipe
+// label:  incomplete arguments: an open, then a pipe
+// input:  "{{{|"
+// output: [Text(text="{{{|")]
+test "incomplete arguments: an open, then a pipe" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "{{{|");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("{{{|") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   incomplete_open_pipe_text
+// label:  incomplete arguments: an open, then a pipe, then text
+// input:  "{{{|foo"
+// output: [Text(text="{{{|foo")]
+test "incomplete arguments: an open, then a pipe, then text" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "{{{|foo");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("{{{|foo") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   incomplete_open_pipes_text
+// label:  incomplete arguments: a pipe, then text then two pipes
+// input:  "{{{|f||"
+// output: [Text(text="{{{|f||")]
+test "incomplete arguments: a pipe, then text then two pipes" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "{{{|f||");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("{{{|f||") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   incomplete_open_partial_close
+// label:  incomplete arguments: an open, then one right brace
+// input:  "{{{{}"
+// output: [Text(text="{{{{}")]
+test "incomplete arguments: an open, then one right brace" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "{{{{}");
+
+    const expected = [_]c.Token{
+        .{ .type = c.Text, .ctx = .{ .data = cText("{{{{}") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
+// name:   incomplete_preserve_previous
+// label:  incomplete arguments: a valid argument followed by an invalid one
+// input:  "{{{foo}}} {{{bar"
+// output: [ArgumentOpen(), Text(text="foo"), ArgumentClose(), Text(text=" {{{bar")]
+test "incomplete arguments: a valid argument followed by an invalid one" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "{{{foo}}} {{{bar");
+
+    const expected = [_]c.Token{
+        .{ .type = c.ArgumentOpen },
+        .{ .type = c.Text, .ctx = .{ .data = cText("foo") } },
+        .{ .type = c.ArgumentClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" {{{bar") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
