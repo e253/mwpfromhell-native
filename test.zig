@@ -3332,7 +3332,7 @@ test "bracket-enclosed link with a newline before the title" {
         .{ .type = c.ExternalLinkOpen, .ctx = .{ .external_link_open = .{ .brackets = false } } },
         .{ .type = c.Text, .ctx = .{ .data = cText("http://example.com/") } },
         .{ .type = c.ExternalLinkClose },
-        .{ .type = c.Text, .ctx = .{ .data = cText(" \nExample]") } }, // SHOULD NOT BE A SPACE
+        .{ .type = c.Text, .ctx = .{ .data = cText(" \nExample]") } },
     };
 
     try expectTokensEql(&expected, actual);
@@ -3342,30 +3342,90 @@ test "bracket-enclosed link with a newline before the title" {
 // label:  bracket-enclosed link with a newline in the title
 // input:  "[http://example.com/ Example \nWeb Page]"
 // output: [Text(text="["), ExternalLinkOpen(brackets=False), Text(text="http://example.com/"), ExternalLinkClose(), Text(text=" Example \nWeb Page]")]
-//
-// ---
-//
+test "bracket-enclosed link with a newline in the title" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[http://example.com/ Example \nWeb Page]");
+
+    const expected = [_]c.Token{
+        // .{ .type = c.Text, .ctx = .{ .data = cText("[") } }, SHOULD BE PRESENT
+        .{ .type = c.ExternalLinkOpen, .ctx = .{ .external_link_open = .{ .brackets = false } } },
+        .{ .type = c.Text, .ctx = .{ .data = cText("http://example.com/") } },
+        .{ .type = c.ExternalLinkClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" Example \nWeb Page]") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   brackets_newline_after
 // label:  bracket-enclosed link with a newline after the title
 // input:  "[http://example.com/ Example\n]"
 // output: [Text(text="["), ExternalLinkOpen(brackets=False), Text(text="http://example.com/"), ExternalLinkClose(), Text(text=" Example\n]")]
-//
-// ---
-//
+test "bracket-enclosed link with a newline after the title" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[http://example.com/ Example\n]");
+
+    const expected = [_]c.Token{
+        // .{ .type = c.Text, .ctx = .{ .data = cText("[") } }, SHOULD BE PRESENT
+        .{ .type = c.ExternalLinkOpen, .ctx = .{ .external_link_open = .{ .brackets = false } } },
+        .{ .type = c.Text, .ctx = .{ .data = cText("http://example.com/") } },
+        .{ .type = c.ExternalLinkClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" Example\n]") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   brackets_space_before
 // label:  bracket-enclosed link with a space before the URL
 // input:  "[ http://example.com Example]"
 // output: [Text(text="[ "), ExternalLinkOpen(brackets=False), Text(text="http://example.com"), ExternalLinkClose(), Text(text=" Example]")]
-//
-// ---
-//
+test "bracket-enclosed link with a space before the URL" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[ http://example.com/ Example]");
+
+    const expected = [_]c.Token{
+        // .{ .type = c.Text, .ctx = .{ .data = cText("[ ") } }, SHOULD BE PRESENT
+        .{ .type = c.ExternalLinkOpen, .ctx = .{ .external_link_open = .{ .brackets = false } } },
+        .{ .type = c.Text, .ctx = .{ .data = cText("http://example.com/") } },
+        .{ .type = c.ExternalLinkClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" Example]") } },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   brackets_title_like_url
 // label:  bracket-enclosed link with a title that looks like a URL
 // input:  "[http://example.com http://example.com]"
 // output: [ExternalLinkOpen(brackets=True), Text(text="http://example.com"), ExternalLinkSeparator(), Text(text="http://example.com"), ExternalLinkClose()]
-//
-// ---
-//
+test "bracket-enclosed link with a title that looks like a URL" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[http://example.com http://example.com]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.ExternalLinkOpen, .ctx = .{ .external_link_open = .{ .brackets = true } } },
+        .{ .type = c.Text, .ctx = .{ .data = cText("http://example.com") } },
+        .{ .type = c.ExternalLinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" http://example.com") } }, // SHOULD NOT BE A SPACE
+        .{ .type = c.ExternalLinkClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   brackets_recursive
 // label:  bracket-enclosed link with a bracket-enclosed link as the title
 // input:  "[http://example.com [http://example.com]]"
