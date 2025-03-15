@@ -538,7 +538,8 @@ Tokenizer_parse_bracketed_uri_scheme(memory_arena_t *a, Tokenizer *self)
 static int
 Tokenizer_parse_free_uri_scheme(memory_arena_t *a, Tokenizer *self)
 {
-    static const char *valid = URISCHEME;
+    // static const char *valid = URISCHEME;
+#define IS_VALID(ch) (isalnum(ch) || ch == '+' || ch == '-' || ch == ".")
     Textbuffer *scheme = Textbuffer_new(a, &self->text);
     if (!scheme) {
         return 1;
@@ -552,20 +553,13 @@ Tokenizer_parse_free_uri_scheme(memory_arena_t *a, Tokenizer *self)
         if (!isalnum(ch) && ch != '_') {
             break;
         }
-        int j = 0;
-        do {
-            if (!valid[j]) {
-                Textbuffer_dealloc(a, scheme);
-                FAIL_ROUTE(0);
-                return 0;
-            }
-        } while (ch != valid[j++]);
         Textbuffer_write(a, scheme, ch);
     }
 
     Textbuffer_reverse(scheme);
 
     bool slashes = Tokenizer_read(self, 0) == '/' && Tokenizer_read(self, 1) == '/';
+
     if (!is_scheme(scheme->data, scheme->length, slashes)) {
         Textbuffer_dealloc(a, scheme);
         FAIL_ROUTE(0);
@@ -660,7 +654,7 @@ Tokenizer_really_parse_external_link(memory_arena_t *a,
                                      int brackets,
                                      Textbuffer *extra)
 {
-    char this, next;
+    char next;
     int parens = 0;
 
     if (brackets ? Tokenizer_parse_bracketed_uri_scheme(a, self)
@@ -670,7 +664,8 @@ Tokenizer_really_parse_external_link(memory_arena_t *a,
     if (BAD_ROUTE) {
         return NULL;
     }
-    this = Tokenizer_read(self, 0);
+
+    char this = Tokenizer_read(self, 0);
     if (!this || this == '\n' || this == ' ' || this == ']') {
         return Tokenizer_fail_route(a, self);
     }
@@ -710,7 +705,7 @@ Tokenizer_really_parse_external_link(memory_arena_t *a,
 
                 self->topstack->context ^= LC_EXT_LINK_URI;
                 self->topstack->context |= LC_EXT_LINK_TITLE;
-                return Tokenizer_parse(a, self, 0, 0);
+                return Tokenizer_parse(a, self, 0, false);
             }
             if (Tokenizer_emit_char(a, self, this)) {
                 return NULL;
@@ -738,46 +733,23 @@ Tokenizer_really_parse_external_link(memory_arena_t *a,
     Remove the URI scheme of a new external link from the textbuffer.
 */
 static int
-Tokenizer_remove_uri_scheme_from_textbuffer(Tokenizer *self, void *link)
+Tokenizer_remove_uri_scheme_from_textbuffer(Tokenizer *self, TokenList *link)
 {
-    puts("remove uri scheme from textbuffer not impl");
-    exit(1);
-    return -1;
-    // TODO: Figure out actual arg types
-
-    // PyObject *text = PyObject_GetAttrString(PyList_GET_ITEM(link, 0), "text"),
-    // *split,
-    //          *scheme;
-    // size_t length;
-
-    // if (!text) {
-    //     return -1;
-    // }
-    // split = PyObject_CallMethod(text, "split", "si", ":", 1);
-    // Py_DECREF(text);
-    // if (!split) {
-    //     return -1;
-    // }
-    // scheme = PyList_GET_ITEM(split, 0);
-    // length = PyUnicode_GET_LENGTH(scheme);
-    // Py_DECREF(split);
-    // self->topstack->textbuffer->length -= length;
-    // return 0;
+    self->topstack->textbuffer->length = 0;
+    return 0;
 }
 
 /*
     Parse an external link at the head of the wikicode string.
 */
 static int
-Tokenizer_parse_external_link(memory_arena_t *a, Tokenizer *self, int brackets)
+Tokenizer_parse_external_link(memory_arena_t *a, Tokenizer *self, bool brackets)
 {
 #define NOT_A_LINK                                                                     \
-    do {                                                                               \
-        if (!brackets && self->topstack->context & LC_DLTERM) {                        \
-            return Tokenizer_handle_dl_term(a, self);                                  \
-        }                                                                              \
-        return Tokenizer_emit_char(a, self, Tokenizer_read(self, 0));                  \
-    } while (0)
+    if (!brackets && self->topstack->context & LC_DLTERM) {                            \
+        return Tokenizer_handle_dl_term(a, self);                                      \
+    }                                                                                  \
+    return Tokenizer_emit_char(a, self, Tokenizer_read(self, 0));
 
     size_t reset = self->head;
     Textbuffer *extra;
@@ -787,7 +759,7 @@ Tokenizer_parse_external_link(memory_arena_t *a, Tokenizer *self, int brackets)
     }
     extra = Textbuffer_new(a, &self->text);
     if (!extra) {
-        return -1;
+        return 1;
     }
     self->head++;
     TokenList *link = Tokenizer_really_parse_external_link(a, self, brackets, extra);
@@ -799,7 +771,7 @@ Tokenizer_parse_external_link(memory_arena_t *a, Tokenizer *self, int brackets)
     }
     if (!link) {
         Textbuffer_dealloc(a, extra);
-        return -1;
+        return 1;
     }
     if (!brackets) {
         if (Tokenizer_remove_uri_scheme_from_textbuffer(self, link)) {
@@ -809,20 +781,21 @@ Tokenizer_parse_external_link(memory_arena_t *a, Tokenizer *self, int brackets)
     }
 
     TOKEN_CTX(el_open, ExternalLinkOpen)
-    el_open.ctx.external_link_open.brackets = true;
+    el_open.ctx.external_link_open.brackets = brackets;
     if (Tokenizer_emit(a, self, &el_open)) {
         Textbuffer_dealloc(a, extra);
-        return -1;
+        return 1;
     }
 
     if (Tokenizer_emit_all(a, self, link)) {
         Textbuffer_dealloc(a, extra);
-        return -1;
+        return 1;
     }
+
     TOKEN(el_close, ExternalLinkClose)
     if (Tokenizer_emit(a, self, &el_close)) {
         Textbuffer_dealloc(a, extra);
-        return -1;
+        return 1;
     }
 
     if (extra->length > 0) {

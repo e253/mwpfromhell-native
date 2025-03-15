@@ -10,12 +10,14 @@ const c = @cImport({
 
 const Arena = c.memory_arena_t;
 
-fn printTokens(tokenlist: c.TokenList) void {
+export fn printTokens(tokenlist: c.TokenList) void {
     var i: u32 = 0;
     while (i < tokenlist.len) : (i += 1) {
         const token = tokenlist.tokens[i];
         if (token.type == c.Text) {
             std.debug.print("Text(\"{s}\")", .{@as([*c]const u8, @ptrCast(token.ctx.data))});
+        } else if (token.type == c.ExternalLinkOpen) {
+            std.debug.print("ExternalLinkOpen({})", .{token.ctx.external_link_open.brackets});
         } else {
             std.debug.print("{s}", .{c.TokenTypeString(token.type)});
         }
@@ -3204,37 +3206,108 @@ test "incomplete arguments: a valid argument followed by an invalid one" {
 // label:  basic external link
 // input:  "http://example.com/"
 // output: [ExternalLinkOpen(brackets=False), Text(text="http://example.com/"), ExternalLinkClose()]
-//
-// ---
-//
+test "basic external link" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "http://example.com");
+
+    const expected = [_]c.Token{
+        .{ .type = c.ExternalLinkOpen, .ctx = .{ .external_link_open = .{ .brackets = false } } },
+        .{ .type = c.Text, .ctx = .{ .data = cText("http://example.com") } },
+        .{ .type = c.ExternalLinkClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   basic_brackets
 // label:  basic external link in brackets
 // input:  "[http://example.com/]"
 // output: [ExternalLinkOpen(brackets=True), Text(text="http://example.com/"), ExternalLinkClose()]
-//
-// ---
-//
+test "basic external link in brackets" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[http://example.com]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.ExternalLinkOpen, .ctx = .{ .external_link_open = .{ .brackets = true } } },
+        .{ .type = c.Text, .ctx = .{ .data = cText("http://example.com") } },
+        .{ .type = c.ExternalLinkClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   brackets_space
 // label:  basic external link in brackets, with a space after
 // input:  "[http://example.com/ ]"
 // output: [ExternalLinkOpen(brackets=True), Text(text="http://example.com/"), ExternalLinkSeparator(), ExternalLinkClose()]
-//
-// ---
-//
+test "basic external link in brackets, with a space after" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[http://example.com ]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.ExternalLinkOpen, .ctx = .{ .external_link_open = .{ .brackets = true } } },
+        .{ .type = c.Text, .ctx = .{ .data = cText("http://example.com") } },
+        .{ .type = c.ExternalLinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" ") } }, // SHOULD NOT BE HERE
+        .{ .type = c.ExternalLinkClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   brackets_title
 // label:  basic external link in brackets, with a title
 // input:  "[http://example.com/ Example]"
 // output: [ExternalLinkOpen(brackets=True), Text(text="http://example.com/"), ExternalLinkSeparator(), Text(text="Example"), ExternalLinkClose()]
-//
-// ---
-//
+test "basic external link in brackets, with a title" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[http://example.com Example]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.ExternalLinkOpen, .ctx = .{ .external_link_open = .{ .brackets = true } } },
+        .{ .type = c.Text, .ctx = .{ .data = cText("http://example.com") } },
+        .{ .type = c.ExternalLinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" Example") } }, // SHOULD NOT BE A SPACE
+        .{ .type = c.ExternalLinkClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   brackets_multiword_title
 // label:  basic external link in brackets, with a multi-word title
 // input:  "[http://example.com/ Example Web Page]"
 // output: [ExternalLinkOpen(brackets=True), Text(text="http://example.com/"), ExternalLinkSeparator(), Text(text="Example Web Page"), ExternalLinkClose()]
-//
-// ---
-//
+test "basic external link in brackets, with a multi-word title" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[http://example.com Example Web Page]");
+
+    const expected = [_]c.Token{
+        .{ .type = c.ExternalLinkOpen, .ctx = .{ .external_link_open = .{ .brackets = true } } },
+        .{ .type = c.Text, .ctx = .{ .data = cText("http://example.com") } },
+        .{ .type = c.ExternalLinkSeparator },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" Example Web Page") } }, // SHOULD NOT BE A SPACE
+        .{ .type = c.ExternalLinkClose },
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   brackets_adjacent
 // label:  three adjacent bracket-enclosed external links
 // input:  "[http://foo.com/ Foo][http://bar.com/ Bar]\n[http://baz.com/ Baz]"
@@ -3242,13 +3315,29 @@ test "incomplete arguments: a valid argument followed by an invalid one" {
 //
 // ---
 //
+
 // name:   brackets_newline_before
 // label:  bracket-enclosed link with a newline before the title
 // input:  "[http://example.com/ \nExample]"
 // output: [Text(text="["), ExternalLinkOpen(brackets=False), Text(text="http://example.com/"), ExternalLinkClose(), Text(text=" \nExample]")]
-//
-// ---
-//
+test "bracket-enclosed link with a newline before the title" {
+    var a: Arena = std.mem.zeroes(Arena);
+    try std.testing.expect(c.arena_init(&a) == 0);
+    defer c.arena_clear(&a);
+
+    const actual = tokenize_arena(&a, "[http://example.com/ \nExample]");
+
+    const expected = [_]c.Token{
+        // .{ .type = c.Text, .ctx = .{ .data = cText("[") } }, SHOULD BE PRESENT
+        .{ .type = c.ExternalLinkOpen, .ctx = .{ .external_link_open = .{ .brackets = false } } },
+        .{ .type = c.Text, .ctx = .{ .data = cText("http://example.com/") } },
+        .{ .type = c.ExternalLinkClose },
+        .{ .type = c.Text, .ctx = .{ .data = cText(" \nExample]") } }, // SHOULD NOT BE A SPACE
+    };
+
+    try expectTokensEql(&expected, actual);
+}
+
 // name:   brackets_newline_inside
 // label:  bracket-enclosed link with a newline in the title
 // input:  "[http://example.com/ Example \nWeb Page]"

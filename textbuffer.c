@@ -104,7 +104,7 @@ Textbuffer_concat(memory_arena_t *a, Textbuffer *self, Textbuffer *other)
         self->data =
             arena_reallocarray(a, self->data, self->capacity * RESIZE_FACTOR, 1);
         if (self->data == NULL)
-            return -1;
+            return 1;
         self->capacity = self->capacity * RESIZE_FACTOR;
     }
 

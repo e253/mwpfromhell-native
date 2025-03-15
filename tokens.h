@@ -22,6 +22,7 @@ SOFTWARE.
 
 #pragma once
 
+#include <assert.h>
 #include <stdbool.h>
 
 typedef enum {
@@ -127,6 +128,8 @@ inline const char* TokenTypeString(TokenType tt)
         Case_Return(TagOpenClose);
         Case_Return(TagCloseClose);
     }
+
+    return "UNKNOWN_TOKEN";
 }
 
 typedef struct {
